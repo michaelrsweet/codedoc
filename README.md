@@ -6,7 +6,18 @@ files to produce an XML representation of globally accessible classes,
 constants, enumerations, functions, structures, typedefs, unions, and
 variables - the XML file is updated as necessary.
 
-By default, a HTML representation of the XML file is written to the standard output.  Codedoc also supports generating man pages and EPUB books.
+By default, a HTML representation of the XML file is written to the standard
+output.  Codedoc also supports generating man pages and EPUB books.
+
+Codedoc was originally bundled with the Mini-XML library as the `mxmldoc`
+utility.
+
+
+Changes in v1.0
+---------------
+
+- Fixed a potential crash bug in mxmldoc found by fuzzing.
+- The `mxmldoc` program now sets the EPUB subject ("Programming").
 
 
 Building Codedoc
