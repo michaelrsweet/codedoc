@@ -4393,7 +4393,7 @@ write_html(const char  *framefile,	/* I - Framed HTML basename */
 
     fputs("    <meta http-equiv=\"Content-Type\" "
           "content=\"text/html;charset=utf-8\">\n"
-          "\t<meta name=\"creator\" content=\"" MXML_VERSION "\">\n"
+          "\t<meta name=\"creator\" content=\"" VERSION "\">\n"
           "\t<meta name=\"author\" content=\"", out);
     write_string(out, author, OUTPUT_HTML);
     fputs("\">\n"
@@ -4860,7 +4860,7 @@ write_html_head(FILE       *out,	/* I - Output file */
     if (section)
       fprintf(out, "    <meta name=\"keywords\" content=\"%s\" />\n", section);
 
-    fputs("    <meta name=\"creator\" content=\"" MXML_VERSION "\" />\n"
+    fputs("    <meta name=\"creator\" content=\"" VERSION "\" />\n"
           "    <meta name=\"author\" content=\"", out);
     write_string(out, author, mode);
     fputs("\" />\n"
@@ -4879,7 +4879,7 @@ write_html_head(FILE       *out,	/* I - Output file */
 
     fputs("    <meta http-equiv=\"Content-Type\" "
           "content=\"text/html;charset=utf-8\">\n"
-          "    <meta name=\"creator\" content=\"" MXML_VERSION "\">\n"
+          "    <meta name=\"creator\" content=\"" VERSION "\">\n"
           "    <meta name=\"author\" content=\"", out);
     write_string(out, author, mode);
     fputs("\">\n"
