@@ -1,7 +1,7 @@
 .\"
 .\" codedoc man page
 .\"
-.\"     https://github.com/michaelrsweet/codedoc
+.\"     https://www.msweet.org/codedoc
 .\"
 .\" Copyright © 2003-2019 by Michael R Sweet.
 .\"
@@ -122,9 +122,16 @@ codedoc \- code documentation utility
 .B codedoc
 scans the specified C and C++ source files to produce an XML representation of globally accessible classes, constants, enumerations, functions, structures, typedefs, unions, and variables - the XML file is updated as necessary.
 By default, a HTML representation of the XML file is written to the standard output.
-Use the \fI\-\-no-output\fR option to disable the HTML output.
+Use the
+.B \-\-no-output
+option to disable the HTML output.
 .PP
-Man page source can be generated using the \fI\-\-man\fR option.
+Man page source can be generated using the
+.B \-\-man
+option.
+EPUB books can be generated using the
+.B \-\-epub
+option.
 .PP
 If no source files are specified then the current XML file is converted to the standard output.
 .PP
@@ -133,53 +140,41 @@ In general, any C or C++ source code is handled by
 however it was specifically written to handle code with documentation that is formatted according to the CUPS Developer Guide which is available at "https://www.cups.org/doc/spec-cmp.html".
 .SH OPTIONS
 .TP 5
-\-\-author "author name"
-.br
+\fB\-\-author \fI"author name"\fR
 Specifies the name of the documentation author.
 .TP 5
-\-\-body bodyfile
-.br
+\fB\-\-body \fIbodyfile\fR
 Inserts the specified file between the table of contents and references.
 .TP 5
-\-\-copyright "copyright text"
-.br
+\fB\-\-copyright \fI"copyright text"\fR
 Specifies the copyright text to use.
 .TP 5
-\-\-docversion version
-.br
+\fB\-\-docversion \fIversion\fR
 Specifies the version number for the generated documentation.
 .TP 5
-\-\-epub filename.epub
-.br
+\fB\-\-epub \fIfilename.epub\fR
 Creates an EPUB book with the specified filename.
 .TP 5
-\-\-footer footerfile
-.br
+\fB\-\-footer \fIfooterfile\fR
 Inserts the specified file at the bottom of the output documentation.
 .TP 5
-\-\-framed basename
-.br
+\fB\-\-framed \fIbasename\fR
 Creates HTML documentation using frames - one for the table-of-contents and
 one for the body.
 .TP 5
-\-\-header headerfile
-.br
+\fB\-\-header \fIheaderfile\fR
 Inserts the specified file at the top of the output documentation.
 .TP 5
-\-\-man manpage
-.br
+\fB\-\-man \fImanpage\fR
 Generated a man page instead of HTML documentation.
 .TP 5
-\-\-no-output
-.br
+\fB\-\-no-output\fR
 Disables generation of documentation on the standard output.
 .TP 5
-\-\-section section
-.br
+\fB\-\-section \fIsection\fR
 Sets the section/keywords in the output documentation.
 .TP 5
-\-\-title title
-.br
+\fB\-\-title \fItitle\fR
 Sets the title of the output documentation.
 .SH SEE ALSO
 https://www.msweet.org/codedoc

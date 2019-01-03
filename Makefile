@@ -1,7 +1,7 @@
 #
 # Makefile for codedoc, a code documentation utility.
 #
-#     https://github.com/michaelrsweet/codedoc
+#     https://www.msweet.org/codedoc
 #
 # Copyright © 2003-2019 by Michael R Sweet.
 #
