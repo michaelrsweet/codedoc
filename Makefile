@@ -1,0 +1,52 @@
+#
+# Makefile for codedoc, a code documentation utility.
+#
+#     https://github.com/michaelrsweet/codedoc
+#
+# Copyright © 2003-2019 by Michael R Sweet.
+#
+# Licensed under Apache License v2.0.  See the file "LICENSE" for more
+# information.
+#
+
+VERSION	=	1.0
+prefix	=	$(DESTDIR)/usr/local
+includedir =	$(prefix)/include
+bindir	=	$(prefix)/bin
+libdir	=	$(prefix)/lib
+mandir	=	$(prefix)/share/man
+
+CC	=	gcc
+CFLAGS	=	$(OPTIM) -Wall '-DVERSION="$(VERSION)"' $(OPTIONS)
+LDFLAGS	=	$(OPTIM)
+LIBS	=	-lmxml -lz -lm
+OPTIM	=	-Os -g
+#OPTIM	=	-g -fsanitize=address
+OPTIONS	=
+#OPTIONS	=	-DDEBUG
+
+OBJS	=	codedoc.o mmd.o zipc.o
+TARGETS	=	codedoc
+
+.SUFFIXES:	.c .o
+.c.o:
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+all:		$(TARGETS)
+
+clean:
+	rm -f $(TARGETS) $(OBJS)
+
+install:	$(TARGETS)
+	mkdir -p $(bindir)
+	cp codedoc $(bindir)
+	mkdir -p $(mandir)/man1
+	cp codedoc.1 $(mandir)/man1
+
+codedoc:	$(OBJS)
+	$(CC) $(LDFLAGS) -o codedoc $(OBJS) $(LIBS)
+
+$(OBJS):	Makefile
+codedoc.o:	mmd.h zipc.h
+mmd.o:		mmd.h
+zipc.o:		zipc.h

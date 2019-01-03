@@ -1,0 +1,187 @@
+.\"
+.\" codedoc man page
+.\"
+.\"     https://github.com/michaelrsweet/codedoc
+.\"
+.\" Copyright © 2003-2019 by Michael R Sweet.
+.\"
+.\" Licensed under Apache License v2.0.  See the file "LICENSE" for more
+.\" information.
+.\"
+.TH codedoc 1 "codedoc" "2019-01-02" "Michael R Sweet"
+.SH NAME
+codedoc \- code documentation utility
+.SH SYNOPSIS
+.B codedoc
+\-\-no-output [
+.I filename.xml
+]
+.I source file(s)
+]
+.br
+.B codedoc
+[ \-\-author
+.I author
+] [ \-\-body
+.I bodyfile
+] [ \-\-copyright
+.I copyright
+] [ \-\-footer
+.I footerfile
+] [ \-\-header
+.I headerfile
+] [ \-\-section
+.I section
+] [ \-\-title
+.I title
+] [
+.I filename.xml
+] [
+.I source file(s)
+] >
+.I filename.html
+.br
+.B codedoc
+\-\-framed
+.I basename
+[ \-\-author
+.I author
+] [ \-\-body
+.I bodyfile
+] [ \-\-copyright
+.I copyright
+] [ \-\-footer
+.I footerfile
+] [ \-\-header
+.I headerfile
+] [ \-\-section
+.I section
+] [ \-\-title
+.I title
+] [
+.I filename.xml
+] [
+.I source file(s)
+]
+.br
+.B codedoc
+[ \-\-author
+.I author
+] [ \-\-body
+.I bodyfile
+] [ \-\-copyright
+.I copyright
+] [ \-\-footer
+.I footerfile
+] [ \-\-header
+.I headerfile
+] \-\-man
+.I manpage
+[ \-\-section
+.I section
+] [ \-\-title
+.I title
+] [
+.I filename.xml
+] [
+.I source file(s)
+] >
+.I filename.man
+.br
+.B codedoc
+\-\-epub
+.I filename.epub
+[ \-\-author
+.I author
+] [ \-\-body
+.I bodyfile
+] [ \-\-copyright
+.I copyright
+] [ \-\-coverimage
+.I image.png
+] [ \-\-docversion
+.I version
+] [ \-\-feedname
+.I name
+] [ \-\-feedurl
+.I url
+] [ \-\-footer
+.I footerfile
+] [ \-\-header
+.I headerfile
+] [ \-\-section
+.I section
+] [ \-\-title
+.I title
+] [
+.I filename.xml
+] [
+.I source file(s)
+]
+.SH DESCRIPTION
+.B codedoc
+scans the specified C and C++ source files to produce an XML representation of globally accessible classes, constants, enumerations, functions, structures, typedefs, unions, and variables - the XML file is updated as necessary.
+By default, a HTML representation of the XML file is written to the standard output.
+Use the \fI\-\-no-output\fR option to disable the HTML output.
+.PP
+Man page source can be generated using the \fI\-\-man\fR option.
+.PP
+If no source files are specified then the current XML file is converted to the standard output.
+.PP
+In general, any C or C++ source code is handled by
+.B codedoc,
+however it was specifically written to handle code with documentation that is formatted according to the CUPS Developer Guide which is available at "https://www.cups.org/doc/spec-cmp.html".
+.SH OPTIONS
+.TP 5
+\-\-author "author name"
+.br
+Specifies the name of the documentation author.
+.TP 5
+\-\-body bodyfile
+.br
+Inserts the specified file between the table of contents and references.
+.TP 5
+\-\-copyright "copyright text"
+.br
+Specifies the copyright text to use.
+.TP 5
+\-\-docversion version
+.br
+Specifies the version number for the generated documentation.
+.TP 5
+\-\-epub filename.epub
+.br
+Creates an EPUB book with the specified filename.
+.TP 5
+\-\-footer footerfile
+.br
+Inserts the specified file at the bottom of the output documentation.
+.TP 5
+\-\-framed basename
+.br
+Creates HTML documentation using frames - one for the table-of-contents and
+one for the body.
+.TP 5
+\-\-header headerfile
+.br
+Inserts the specified file at the top of the output documentation.
+.TP 5
+\-\-man manpage
+.br
+Generated a man page instead of HTML documentation.
+.TP 5
+\-\-no-output
+.br
+Disables generation of documentation on the standard output.
+.TP 5
+\-\-section section
+.br
+Sets the section/keywords in the output documentation.
+.TP 5
+\-\-title title
+.br
+Sets the title of the output documentation.
+.SH SEE ALSO
+https://www.msweet.org/codedoc
+.SH COPYRIGHT
+Copyright \[co] 2003-2019 by Michael R Sweet.
