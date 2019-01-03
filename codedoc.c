@@ -1,4 +1,3 @@
-/*#define DEBUG 1*/
 /*
  * Documentation utility for C/C++ code.
  *
@@ -129,6 +128,21 @@
 
 typedef struct
 {
+  const char	*filename;		/* Filename */
+  FILE		*fp;			/* File pointer */
+  int		ch,			/* Saved character */
+		line,			/* Current line number */
+		column;			/* Current column */
+} filebuf_t;
+
+typedef struct
+{
+  char	buffer[65536],			/* String buffer */
+	*bufptr;			/* Pointer into buffer */
+} stringbuf_t;
+
+typedef struct
+{
   char	level,				/* Table of contents level (0-N) */
 	anchor[64],			/* Anchor in file */
 	title[447];			/* Title of section */
@@ -149,6 +163,9 @@ typedef struct
 static void		add_toc(toc_t *toc, int level, const char *anchor, const char *title);
 static mxml_node_t	*add_variable(mxml_node_t *parent, const char *name, mxml_node_t *type);
 static toc_t		*build_toc(mxml_node_t *doc, const char *bodyfile, mmd_t *body, int mode);
+static int		filebuf_getc(filebuf_t *file);
+static int		filebuf_open(filebuf_t *file, const char *filename);
+static void		filebuf_ungetc(filebuf_t *file, int ch);
 static mxml_node_t	*find_public(mxml_node_t *node, mxml_node_t *top, const char *element, const char *name, int mode);
 static void		free_toc(toc_t *toc);
 static char		*get_comment_info(mxml_node_t *description);
@@ -161,8 +178,13 @@ static void		markdown_write_block(FILE *out, mmd_t *parent, int mode);
 static void		markdown_write_leaf(FILE *out, mmd_t *node, int mode);
 static mxml_node_t	*new_documentation(mxml_node_t **codedoc);
 static void		safe_strcpy(char *dst, const char *src);
-static int		scan_file(const char *filename, FILE *fp, mxml_node_t *doc);
+static int		scan_file(filebuf_t *file, mxml_node_t *doc);
 static void		sort_node(mxml_node_t *tree, mxml_node_t *func);
+static int		stringbuf_append(stringbuf_t *buffer, int ch);
+static void		stringbuf_clear(stringbuf_t *buffer);
+static char		*stringbuf_get(stringbuf_t *buffer);
+static int		stringbuf_getlast(stringbuf_t *buffer);
+static size_t		stringbuf_length(stringbuf_t *buffer);
 static void		update_comment(mxml_node_t *parent, mxml_node_t *comment);
 static void		usage(const char *option);
 static void		write_description(FILE *out, int mode, mxml_node_t *description, const char *element, int summary);
@@ -190,7 +212,7 @@ main(int  argc,				/* I - Number of command-line args */
 {
   int		i;			/* Looping var */
   int		len;			/* Length of argument */
-  FILE		*fp;			/* File to read */
+  filebuf_t	file;			/* File to read */
   mxml_node_t	*doc = NULL;		/* XML documentation tree */
   mxml_node_t	*codedoc = NULL;	/* codedoc node */
   const char	*author = NULL,		/* Author */
@@ -217,6 +239,7 @@ main(int  argc,				/* I - Number of command-line args */
   */
 
   for (i = 1; i < argc; i ++)
+  {
     if (!strcmp(argv[i], "--help"))
     {
      /*
@@ -434,7 +457,9 @@ main(int  argc,				/* I - Number of command-line args */
 
         if (!doc)
 	{
-	  if ((fp = fopen(argv[i], "r")) != NULL)
+	  FILE *fp = fopen(argv[i], "r");
+
+	  if (fp)
 	  {
 	   /*
 	    * Read the existing XML file...
@@ -484,23 +509,22 @@ main(int  argc,				/* I - Number of command-line args */
 	if (!doc)
 	  doc = new_documentation(&codedoc);
 
-	if ((fp = fopen(argv[i], "r")) == NULL)
-	{
-	  fprintf(stderr, "codedoc: Unable to open source file \"%s\": %s\n",
-	          argv[i], strerror(errno));
+        if (!filebuf_open(&file, argv[i]))
+        {
 	  mxmlDelete(doc);
 	  return (1);
 	}
-	else if (scan_file(argv[i], fp, codedoc))
+	else if (!scan_file(&file, codedoc))
 	{
-	  fclose(fp);
+	  fclose(file.fp);
 	  mxmlDelete(doc);
 	  return (1);
 	}
 	else
-	  fclose(fp);
+	  fclose(file.fp);
       }
     }
+  }
 
   if (update && xmlfile)
   {
@@ -508,7 +532,9 @@ main(int  argc,				/* I - Number of command-line args */
     * Save the updated XML documentation file...
     */
 
-    if ((fp = fopen(xmlfile, "w")) != NULL)
+    FILE *fp = fopen(xmlfile, "w");
+
+    if (fp)
     {
      /*
       * Write over the existing XML file...
@@ -1119,6 +1145,152 @@ epub_ws_cb(mxml_node_t *node,		/* I - Element node */
 
         return ("\n");
   }
+}
+
+
+/*
+ * 'filebuf_getc()' - Get a UTF-8 character from a file, tracking the line and
+ *                    column.
+ */
+
+static int				/* O - Character or EOF */
+filebuf_getc(filebuf_t *file)		/* I - File buffer */
+{
+  int	ch;				/* Current character */
+
+
+  if (file->ch)
+  {
+    ch       = file->ch;
+    file->ch = 0;
+
+    return (ch);
+  }
+
+  if ((ch = getc(file->fp)) == EOF)
+    return (EOF);
+
+  if (ch & 0x80)
+  {
+    if ((ch & 0xe0) == 0xc0)
+    {
+      int ch2 = getc(file->fp);
+
+      if ((ch2 & 0xc0) != 0x80)
+        goto bad_utf8;
+
+      ch = ((ch & 0x1f) << 6) | (ch2 & 0x3f);
+    }
+    else if ((ch & 0xf0) == 0xe0)
+    {
+      int ch2 = getc(file->fp);
+      int ch3 = getc(file->fp);
+
+      if ((ch2 & 0xc0) != 0x80 || (ch3 & 0xc0) != 0x80)
+        goto bad_utf8;
+
+      ch = ((ch & 0x0f) << 12) | ((ch2 & 0x3f) << 6) | (ch3 & 0x3f);
+    }
+    else if ((ch & 0xf8) == 0xf0)
+    {
+      int ch2 = getc(file->fp);
+      int ch3 = getc(file->fp);
+      int ch4 = getc(file->fp);
+
+      if ((ch2 & 0xc0) != 0x80 || (ch3 & 0xc0) != 0x80 || (ch4 & 0xc0) != 0x80)
+        goto bad_utf8;
+
+      ch = ((ch & 0x07) << 18) | ((ch2 & 0x3f) << 12) | ((ch3 & 0x3f) << 6) | (ch4 & 0x3f);
+    }
+    else
+      goto bad_utf8;
+  }
+
+  if (ch == 0x7f || ch < 0x07 || ch == 0x08 || (ch > 0x0d && ch < ' '))
+  {
+    fprintf(stderr, "%s:%d(%d) Illegal control character found.\n", file->filename, file->line, file->column);
+    exit(1);
+  }
+
+  if (ch == 0x09)
+  {
+   /*
+    * Tab...  Traditional tabs are 8 columns...
+    */
+
+    file->column = ((file->column + 7) & ~7) + 1;
+  }
+  else if (ch == 0x0a || ch == 0x0c)
+  {
+   /*
+    * Line feed and form feed...
+    */
+
+    file->line ++;
+    file->column = 1;
+  }
+  else if (ch == 0x0b)
+  {
+   /*
+    * Vertical tab...
+    */
+
+    file->line ++;
+  }
+  else if (ch == 0x0d)
+  {
+   /*
+    * Carriage return...
+    */
+
+    file->column = 1;
+  }
+  else
+    file->column ++;
+
+  return (ch);
+
+ /*
+  * If we get here, the UTF-8 sequence is bad...
+  */
+
+  bad_utf8:
+
+  fprintf(stderr, "%s:%d(%d) Illegal UTF-8 sequence found.\n", file->filename, file->line, file->column);
+  exit(1);
+}
+
+
+/*
+ * 'filebuf_open()' - Open a file.
+ */
+
+static int				/* O - 1 on success, 0 on failure */
+filebuf_open(filebuf_t  *file,		/* I - File buffer */
+             const char *filename)	/* I - Filename to open */
+{
+  file->filename = filename;
+  file->fp       = fopen(filename, "rb");
+  file->ch       = 0;
+  file->line     = 1;
+  file->column   = 1;
+
+  if (!file->fp)
+    perror(filename);
+
+  return (file->fp != NULL);
+}
+
+
+/*
+ * 'filebuf_ungetc()' - Save the previous character read from a file.
+ */
+
+static void
+filebuf_ungetc(filebuf_t *file,		/* I - File buffer */
+               int       ch)		/* I - Character to save */
+{
+  file->ch = ch;
 }
 
 
@@ -1800,17 +1972,15 @@ safe_strcpy(char       *dst,		/* I - Destination string */
  * 'scan_file()' - Scan a source file.
  */
 
-static int				/* O - 0 on success, -1 on error */
-scan_file(const char  *filename,	/* I - Filename */
-          FILE        *fp,		/* I - File to scan */
+static int				/* O - 1 on success, 0 on error */
+scan_file(filebuf_t   *file,		/* I - File to scan */
           mxml_node_t *tree)		/* I - Function tree */
 {
   int		state,			/* Current parser state */
 		braces,			/* Number of braces active */
 		parens;			/* Number of active parenthesis */
   int		ch;			/* Current character */
-  char		buffer[65536],		/* String buffer */
-		*bufptr;		/* Pointer into buffer */
+  stringbuf_t	buffer;			/* String buffer */
   const char	*scope;			/* Current variable/function scope */
   mxml_node_t	*comment,		/* <comment> node */
 		*constant,		/* <constant> node */
@@ -1854,8 +2024,6 @@ scan_file(const char  *filename,	/* I - Filename */
   state        = STATE_NONE;
   braces       = 0;
   parens       = 0;
-  bufptr       = buffer;
-
   comment      = mxmlNewElement(MXML_NO_PARENT, "temp");
   constant     = NULL;
   enumeration  = NULL;
@@ -1873,11 +2041,13 @@ scan_file(const char  *filename,	/* I - Filename */
   else
     scope = NULL;
 
+  stringbuf_clear(&buffer);
+
  /*
   * Read until end-of-file...
   */
 
-  while ((ch = getc(fp)) != EOF)
+  while ((ch = filebuf_getc(file)) != EOF)
   {
 #if DEBUG > 1
     oldstate = state;
@@ -1890,8 +2060,9 @@ scan_file(const char  *filename,	/* I - Filename */
           switch (ch)
 	  {
 	    case '/' :			/* Possible C/C++ comment */
-	        ch     = getc(fp);
-		bufptr = buffer;
+	        ch = filebuf_getc(file);
+
+		stringbuf_clear(&buffer);
 
 		if (ch == '*')
 		  state = STATE_C_COMMENT;
@@ -1899,7 +2070,7 @@ scan_file(const char  *filename,	/* I - Filename */
 		  state = STATE_CXX_COMMENT;
 		else
 		{
-		  ungetc(ch, fp);
+		  filebuf_ungetc(file, ch);
 
 		  if (type)
 		  {
@@ -1923,14 +2094,16 @@ scan_file(const char  *filename,	/* I - Filename */
 
             case '\'' :			/* Character constant */
 	        state = STATE_CHARACTER;
-		bufptr = buffer;
-		*bufptr++ = ch;
+
+		stringbuf_clear(&buffer);
+		stringbuf_append(&buffer, ch);
 		break;
 
             case '\"' :			/* String constant */
 	        state = STATE_STRING;
-		bufptr = buffer;
-		*bufptr++ = ch;
+
+		stringbuf_clear(&buffer);
+		stringbuf_append(&buffer, ch);
 		break;
 
             case '{' :
@@ -2030,21 +2203,22 @@ scan_file(const char  *filename,	/* I - Filename */
                   else if (structclass && type->child &&
 		           type->child->next && type->child->next->next)
 		  {
-		    for (bufptr = buffer, node = type->child->next->next;
-		         node;
-			 bufptr += strlen(bufptr))
-		    {
-		      if (node->value.text.whitespace && bufptr > buffer)
-			*bufptr++ = ' ';
+		    char temp[65536], *tempptr;
 
-		      strlcpy(bufptr, node->value.text.string, sizeof(buffer) - (size_t)(bufptr - buffer));
+		    for (tempptr = temp, node = type->child->next->next; node;
+			 tempptr += strlen(temp))
+		    {
+		      if (node->value.text.whitespace && tempptr > temp && tempptr < (temp + sizeof(temp) - 1))
+			*tempptr++ = ' ';
+
+		      strlcpy(tempptr, node->value.text.string, sizeof(temp) - (size_t)(tempptr - temp));
 
 		      next = node->next;
 		      mxmlDelete(node);
 		      node = next;
 		    }
 
-		    mxmlElementSetAttr(structclass, "parent", buffer);
+		    mxmlElementSetAttr(structclass, "parent", temp);
 
 		    mxmlDelete(type);
 		    type = NULL;
@@ -2083,10 +2257,10 @@ scan_file(const char  *filename,	/* I - Filename */
 		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
 		          comment->last_child);
 
-                  if (scan_file(filename, fp, structclass))
+                  if (scan_file(file, structclass))
 		  {
 		    mxmlDelete(comment);
-		    return (-1);
+		    return (0);
 		  }
 
 #ifdef DEBUG
@@ -2169,10 +2343,10 @@ scan_file(const char  *filename,	/* I - Filename */
 		else if (type && type->child &&
 		         !strcmp(type->child->value.text.string, "extern"))
                 {
-                  if (scan_file(filename, fp, tree))
+                  if (scan_file(file, tree))
 		  {
 		    mxmlDelete(comment);
-		    return (-1);
+		    return (0);
 		  }
                 }
 		else if (type)
@@ -2212,7 +2386,7 @@ scan_file(const char  *filename,	/* I - Filename */
 		else
 		{
 		  mxmlDelete(comment);
-		  return (0);
+		  return (1);
 		}
 		break;
 
@@ -2459,9 +2633,10 @@ scan_file(const char  *filename,	/* I - Filename */
             default :			/* Other */
 	        if (isalnum(ch) || ch == '_' || ch == '.' || ch == ':' || ch == '~')
 		{
-		  state     = STATE_IDENTIFIER;
-		  bufptr    = buffer;
-		  *bufptr++ = ch;
+		  state = STATE_IDENTIFIER;
+
+		  stringbuf_clear(&buffer);
+		  stringbuf_append(&buffer, ch);
 		}
 		break;
           }
@@ -2471,21 +2646,21 @@ scan_file(const char  *filename,	/* I - Filename */
           if (ch == '\n')
 	    state = STATE_NONE;
 	  else if (ch == '\\')
-	    getc(fp);
+	    filebuf_getc(file);
           break;
 
       case STATE_C_COMMENT :		/* Inside a C comment */
           switch (ch)
 	  {
 	    case '\n' :
-	        while ((ch = getc(fp)) != EOF)
+	        while ((ch = filebuf_getc(file)) != EOF)
 		  if (ch == '*')
 		  {
-		    ch = getc(fp);
+		    ch = filebuf_getc(file);
 
 		    if (ch == '/')
 		    {
-		      *bufptr = '\0';
+		      char *commstr = stringbuf_get(&buffer);
 
         	      if (comment->child != comment->last_child)
 		      {
@@ -2513,7 +2688,7 @@ scan_file(const char  *filename,	/* I - Filename */
 
 		      if (variable)
 		      {
-		        if (strstr(buffer, "@private@"))
+		        if (strstr(commstr, "@private@"))
 			{
 			 /*
 			  * Delete private variables...
@@ -2529,15 +2704,15 @@ scan_file(const char  *filename,	/* I - Filename */
 			          "    adding comment %p/%p to variable...\n",
 			          comment->last_child, comment->child);
 #endif /* DEBUG */
-			  mxmlNewOpaque(comment, buffer);
-			  update_comment(variable, mxmlNewOpaque(description, buffer));
+			  mxmlNewOpaque(comment, commstr);
+			  update_comment(variable, mxmlNewOpaque(description, commstr));
                         }
 
 			variable = NULL;
 		      }
 		      else if (constant)
 		      {
-		        if (strstr(buffer, "@private@"))
+		        if (strstr(commstr, "@private@"))
 			{
 			 /*
 			  * Delete private constants...
@@ -2553,15 +2728,15 @@ scan_file(const char  *filename,	/* I - Filename */
 			          "    adding comment %p/%p to constant...\n",
 				  comment->last_child, comment->child);
 #endif /* DEBUG */
-			  mxmlNewOpaque(comment, buffer);
-			  update_comment(constant, mxmlNewOpaque(description, buffer));
+			  mxmlNewOpaque(comment, commstr);
+			  update_comment(constant, mxmlNewOpaque(description, commstr));
 			}
 
 			constant = NULL;
 		      }
 		      else if (typedefnode)
 		      {
-		        if (strstr(buffer, "@private@"))
+		        if (strstr(commstr, "@private@"))
 			{
 			 /*
 			  * Delete private typedefs...
@@ -2590,20 +2765,20 @@ scan_file(const char  *filename,	/* I - Filename */
 				  comment->last_child, comment->child,
 				  mxmlElementGetAttr(typedefnode, "name"));
 #endif /* DEBUG */
-			  mxmlNewOpaque(comment, buffer);
-			  update_comment(typedefnode, mxmlNewOpaque(description, buffer));
+			  mxmlNewOpaque(comment, commstr);
+			  update_comment(typedefnode, mxmlNewOpaque(description, commstr));
 
 			  if (structclass)
 			  {
 			    description = mxmlNewElement(structclass, "description");
 			    update_comment(structclass,
-					   mxmlNewOpaque(description, buffer));
+					   mxmlNewOpaque(description, commstr));
 			  }
 			  else if (enumeration)
 			  {
 			    description = mxmlNewElement(enumeration, "description");
 			    update_comment(enumeration,
-					   mxmlNewOpaque(description, buffer));
+					   mxmlNewOpaque(description, commstr));
 			  }
 			}
 
@@ -2618,8 +2793,8 @@ scan_file(const char  *filename,	/* I - Filename */
 			fprintf(stderr, "    adding comment %p/%p to parent...\n",
 			        comment->last_child, comment->child);
 #endif /* DEBUG */
-        		mxmlNewOpaque(comment, buffer);
-			update_comment(tree, mxmlNewOpaque(description, buffer));
+        		mxmlNewOpaque(comment, commstr);
+			update_comment(tree, mxmlNewOpaque(description, commstr));
 		      }
 		      else
 		      {
@@ -2627,42 +2802,44 @@ scan_file(const char  *filename,	/* I - Filename */
 		        fprintf(stderr, "    before adding comment, child=%p, last_child=%p\n",
 			        comment->child, comment->last_child);
 #endif /* DEBUG */
-        		mxmlNewOpaque(comment, buffer);
+        		mxmlNewOpaque(comment, commstr);
 #ifdef DEBUG
 		        fprintf(stderr, "    after adding comment, child=%p, last_child=%p\n",
 			        comment->child, comment->last_child);
 #endif /* DEBUG */
                       }
 #ifdef DEBUG
-		      fprintf(stderr, "C comment: <<<< %s >>>\n", buffer);
+		      fprintf(stderr, "C comment: <<<< %s >>>\n", commstr);
 #endif /* DEBUG */
 
 		      state = STATE_NONE;
 		      break;
 		    }
 		    else
-		      ungetc(ch, fp);
+		      filebuf_ungetc(file, ch);
 		  }
-		  else if (ch == '\n' && bufptr > buffer &&
-		           bufptr < (buffer + sizeof(buffer) - 1))
-		    *bufptr++ = ch;
+		  else if (ch == '\n' && stringbuf_length(&buffer) > 0)
+		    stringbuf_append(&buffer, ch);
 		  else if (!isspace(ch))
 		    break;
 
 		if (ch != EOF)
-		  ungetc(ch, fp);
+		  filebuf_ungetc(file, ch);
 
-                if (bufptr > buffer && bufptr < (buffer + sizeof(buffer) - 1))
-		  *bufptr++ = '\n';
+                if (stringbuf_length(&buffer) > 0)
+		  stringbuf_append(&buffer, '\n');
 		break;
 
 	    case '/' :
-	        if (ch == '/' && bufptr > buffer && bufptr[-1] == '*')
+	        if (ch == '/' && stringbuf_getlast(&buffer) == '*')
 		{
-		  while (bufptr > buffer &&
-		         (bufptr[-1] == '*' || isspace(bufptr[-1] & 255)))
-		    bufptr --;
-		  *bufptr = '\0';
+		  char *commstr = stringbuf_get(&buffer);
+		  char *commptr = commstr + strlen(commstr) - 1;
+
+		  while (commptr > commstr && (commptr[-1] == '*' || isspace(commptr[-1] & 255)))
+		    commptr --;
+
+		  *commptr = '\0';
 
         	  if (comment->child != comment->last_child)
 		  {
@@ -2690,7 +2867,7 @@ scan_file(const char  *filename,	/* I - Filename */
 
 		  if (variable)
 		  {
-		    if (strstr(buffer, "@private@"))
+		    if (strstr(commstr, "@private@"))
 		    {
 		     /*
 		      * Delete private variables...
@@ -2705,15 +2882,15 @@ scan_file(const char  *filename,	/* I - Filename */
 		      fprintf(stderr, "    adding comment %p/%p to variable...\n",
 		              comment->last_child, comment->child);
 #endif /* DEBUG */
-		      mxmlNewOpaque(comment, buffer);
-		      update_comment(variable, mxmlNewOpaque(description, buffer));
+		      mxmlNewOpaque(comment, commstr);
+		      update_comment(variable, mxmlNewOpaque(description, commstr));
                     }
 
 		    variable = NULL;
 		  }
 		  else if (constant)
 		  {
-		    if (strstr(buffer, "@private@"))
+		    if (strstr(commstr, "@private@"))
 		    {
 		     /*
 		      * Delete private constants...
@@ -2728,15 +2905,15 @@ scan_file(const char  *filename,	/* I - Filename */
 		      fprintf(stderr, "    adding comment %p/%p to constant...\n",
 		              comment->last_child, comment->child);
 #endif /* DEBUG */
-		      mxmlNewOpaque(comment, buffer);
-		      update_comment(constant, mxmlNewOpaque(description, buffer));
+		      mxmlNewOpaque(comment, commstr);
+		      update_comment(constant, mxmlNewOpaque(description, commstr));
 		    }
 
 		    constant = NULL;
 		  }
 		  else if (typedefnode)
 		  {
-		    if (strstr(buffer, "@private@"))
+		    if (strstr(commstr, "@private@"))
 		    {
 		     /*
 		      * Delete private typedefs...
@@ -2765,18 +2942,18 @@ scan_file(const char  *filename,	/* I - Filename */
 			      comment->last_child, comment->child,
 			      mxmlElementGetAttr(typedefnode, "name"));
 #endif /* DEBUG */
-		      mxmlNewOpaque(comment, buffer);
-		      update_comment(typedefnode, mxmlNewOpaque(description, buffer));
+		      mxmlNewOpaque(comment, commstr);
+		      update_comment(typedefnode, mxmlNewOpaque(description, commstr));
 
 		      if (structclass)
 		      {
 			description = mxmlNewElement(structclass, "description");
-			update_comment(structclass, mxmlNewOpaque(description, buffer));
+			update_comment(structclass, mxmlNewOpaque(description, commstr));
 		      }
 		      else if (enumeration)
 		      {
 			description = mxmlNewElement(enumeration, "description");
-			update_comment(enumeration, mxmlNewOpaque(description, buffer));
+			update_comment(enumeration, mxmlNewOpaque(description, commstr));
 		      }
 		    }
 
@@ -2791,14 +2968,14 @@ scan_file(const char  *filename,	/* I - Filename */
 		    fprintf(stderr, "    adding comment %p/%p to parent...\n",
 		            comment->last_child, comment->child);
 #endif /* DEBUG */
-		    mxmlNewOpaque(comment, buffer);
-		    update_comment(tree, mxmlNewOpaque(description, buffer));
+		    mxmlNewOpaque(comment, commstr);
+		    update_comment(tree, mxmlNewOpaque(description, commstr));
 		  }
 		  else
-        	    mxmlNewOpaque(comment, buffer);
+        	    mxmlNewOpaque(comment, commstr);
 
 #ifdef DEBUG
-		  fprintf(stderr, "C comment: <<<< %s >>>\n", buffer);
+		  fprintf(stderr, "C comment: <<<< %s >>>\n", commstr);
 #endif /* DEBUG */
 
 		  state = STATE_NONE;
@@ -2806,11 +2983,10 @@ scan_file(const char  *filename,	/* I - Filename */
 		}
 
 	    default :
-	        if (ch == ' ' && bufptr == buffer)
+	        if (ch == ' ' && stringbuf_length(&buffer) == 0)
 		  break;
 
-	        if (bufptr < (buffer + sizeof(buffer) - 1))
-		  *bufptr++ = ch;
+		stringbuf_append(&buffer, ch);
 		break;
           }
           break;
@@ -2818,8 +2994,9 @@ scan_file(const char  *filename,	/* I - Filename */
       case STATE_CXX_COMMENT :		/* Inside a C++ comment */
           if (ch == '\n')
 	  {
+	    char *commstr = stringbuf_get(&buffer);
+
 	    state = STATE_NONE;
-	    *bufptr = '\0';
 
             if (comment->child != comment->last_child)
 	    {
@@ -2839,7 +3016,7 @@ scan_file(const char  *filename,	/* I - Filename */
 
 	    if (variable)
 	    {
-	      if (strstr(buffer, "@private@"))
+	      if (strstr(commstr, "@private@"))
 	      {
 	       /*
 		* Delete private variables...
@@ -2854,15 +3031,15 @@ scan_file(const char  *filename,	/* I - Filename */
 		fprintf(stderr, "    adding comment %p/%p to variable...\n",
 		        comment->last_child, comment->child);
 #endif /* DEBUG */
-		mxmlNewOpaque(comment, buffer);
-		update_comment(variable, mxmlNewOpaque(description, buffer));
+		mxmlNewOpaque(comment, commstr);
+		update_comment(variable, mxmlNewOpaque(description, commstr));
               }
 
 	      variable = NULL;
 	    }
 	    else if (constant)
 	    {
-	      if (strstr(buffer, "@private@"))
+	      if (strstr(commstr, "@private@"))
 	      {
 	       /*
 		* Delete private constants...
@@ -2877,15 +3054,15 @@ scan_file(const char  *filename,	/* I - Filename */
 		fprintf(stderr, "    adding comment %p/%p to constant...\n",
 		        comment->last_child, comment->child);
 #endif /* DEBUG */
-		mxmlNewOpaque(comment, buffer);
-		update_comment(constant, mxmlNewOpaque(description, buffer));
+		mxmlNewOpaque(comment, commstr);
+		update_comment(constant, mxmlNewOpaque(description, commstr));
               }
 
 	      constant = NULL;
 	    }
 	    else if (typedefnode)
 	    {
-	      if (strstr(buffer, "@private@"))
+	      if (strstr(commstr, "@private@"))
 	      {
 	       /*
 		* Delete private typedefs...
@@ -2914,18 +3091,18 @@ scan_file(const char  *filename,	/* I - Filename */
 			comment->last_child, comment->child,
 			mxmlElementGetAttr(typedefnode, "name"));
 #endif /* DEBUG */
-		mxmlNewOpaque(comment, buffer);
-		update_comment(typedefnode, mxmlNewOpaque(description, buffer));
+		mxmlNewOpaque(comment, commstr);
+		update_comment(typedefnode, mxmlNewOpaque(description, commstr));
 
 		if (structclass)
 		{
 		  description = mxmlNewElement(structclass, "description");
-		  update_comment(structclass, mxmlNewOpaque(description, buffer));
+		  update_comment(structclass, mxmlNewOpaque(description, commstr));
 		}
 		else if (enumeration)
 		{
 		  description = mxmlNewElement(enumeration, "description");
-		  update_comment(enumeration, mxmlNewOpaque(description, buffer));
+		  update_comment(enumeration, mxmlNewOpaque(description, commstr));
 		}
               }
 	    }
@@ -2938,49 +3115,45 @@ scan_file(const char  *filename,	/* I - Filename */
 	      fprintf(stderr, "    adding comment %p/%p to parent...\n",
 	              comment->last_child, comment->child);
 #endif /* DEBUG */
-	      mxmlNewOpaque(comment, buffer);
-	      update_comment(tree, mxmlNewOpaque(description, buffer));
+	      mxmlNewOpaque(comment, commstr);
+	      update_comment(tree, mxmlNewOpaque(description, commstr));
 	    }
 	    else
-              mxmlNewOpaque(comment, buffer);
+              mxmlNewOpaque(comment, commstr);
 
 #ifdef DEBUG
-	    fprintf(stderr, "C++ comment: <<<< %s >>>\n", buffer);
+	    fprintf(stderr, "C++ comment: <<<< %s >>>\n", commstr);
 #endif /* DEBUG */
 	  }
-	  else if (ch == ' ' && bufptr == buffer)
+	  else if (ch == ' ' && stringbuf_length(&buffer) == 0)
 	    break;
-	  else if (bufptr < (buffer + sizeof(buffer) - 1))
-	    *bufptr++ = ch;
+	  else
+	    stringbuf_append(&buffer, ch);
           break;
 
       case STATE_STRING :		/* Inside a string constant */
-	  *bufptr++ = ch;
+	  stringbuf_append(&buffer, ch);
 
           if (ch == '\\')
-	    *bufptr++ = getc(fp);
+	    stringbuf_append(&buffer, filebuf_getc(file));
 	  else if (ch == '\"')
 	  {
-	    *bufptr = '\0';
-
 	    if (type)
-	      mxmlNewText(type, type->child != NULL, buffer);
+	      mxmlNewText(type, type->child != NULL, stringbuf_get(&buffer));
 
 	    state = STATE_NONE;
 	  }
           break;
 
       case STATE_CHARACTER :		/* Inside a character constant */
-	  *bufptr++ = ch;
+	  stringbuf_append(&buffer, ch);
 
           if (ch == '\\')
-	    *bufptr++ = getc(fp);
+	    stringbuf_append(&buffer, filebuf_getc(file));
 	  else if (ch == '\'')
 	  {
-	    *bufptr = '\0';
-
 	    if (type)
-	      mxmlNewText(type, type->child != NULL, buffer);
+	      mxmlNewText(type, type->child != NULL, stringbuf_get(&buffer));
 
 	    state = STATE_NONE;
 	  }
@@ -2991,18 +3164,19 @@ scan_file(const char  *filename,	/* I - Filename */
 	      (ch == ',' && (parens > 1 || (type && !enumeration && !function))) ||
 	      ch == ':' || ch == '.' || ch == '~')
 	  {
-	    if (bufptr < (buffer + sizeof(buffer) - 1))
-	      *bufptr++ = ch;
+	    stringbuf_append(&buffer, ch);
 	  }
 	  else
 	  {
-	    ungetc(ch, fp);
-	    *bufptr = '\0';
-	    state   = STATE_NONE;
+	    char *ptr, *str = stringbuf_get(&buffer);
+
+	    filebuf_ungetc(file, ch);
+
+	    state = STATE_NONE;
 
 #ifdef DEBUG
             fprintf(stderr, "    braces=%d, type=%p, type->child=%p, buffer=\"%s\"\n",
-	            braces, type, type ? type->child : NULL, buffer);
+	            braces, type, type ? type->child : NULL, str);
 #endif /* DEBUG */
 
             if (!braces)
@@ -3011,8 +3185,8 @@ scan_file(const char  *filename,	/* I - Filename */
 	      {
 		if (!strcmp(tree->value.element.name, "class"))
 		{
-		  if (!strcmp(buffer, "public") ||
-	              !strcmp(buffer, "public:"))
+		  if (!strcmp(str, "public") ||
+	              !strcmp(str, "public:"))
 		  {
 		    scope = "public";
 #ifdef DEBUG
@@ -3020,8 +3194,8 @@ scan_file(const char  *filename,	/* I - Filename */
 #endif /* DEBUG */
 		    break;
 		  }
-		  else if (!strcmp(buffer, "private") ||
-	                   !strcmp(buffer, "private:"))
+		  else if (!strcmp(str, "private") ||
+	                   !strcmp(str, "private:"))
 		  {
 		    scope = "private";
 #ifdef DEBUG
@@ -3029,8 +3203,8 @@ scan_file(const char  *filename,	/* I - Filename */
 #endif /* DEBUG */
 		    break;
 		  }
-		  else if (!strcmp(buffer, "protected") ||
-	                   !strcmp(buffer, "protected:"))
+		  else if (!strcmp(str, "protected") ||
+	                   !strcmp(str, "protected:"))
 		  {
 		    scope = "protected";
 #ifdef DEBUG
@@ -3066,28 +3240,24 @@ scan_file(const char  *filename,	/* I - Filename */
 		}
 
 	        function = mxmlNewElement(MXML_NO_PARENT, "function");
-		if ((bufptr = strchr(buffer, ':')) != NULL && bufptr[1] == ':')
+		if ((ptr = strchr(str, ':')) != NULL && ptr[1] == ':')
 		{
-		  *bufptr = '\0';
-		  bufptr += 2;
+		  *ptr = '\0';
+		  ptr += 2;
 
-		  if ((fstructclass =
-		           mxmlFindElement(tree, tree, "class", "name", buffer,
-		                           MXML_DESCEND_FIRST)) == NULL)
-		    fstructclass =
-		        mxmlFindElement(tree, tree, "struct", "name", buffer,
-		                        MXML_DESCEND_FIRST);
+		  if ((fstructclass = mxmlFindElement(tree, tree, "class", "name", str, MXML_DESCEND_FIRST)) == NULL)
+		    fstructclass = mxmlFindElement(tree, tree, "struct", "name", str, MXML_DESCEND_FIRST);
 		}
 		else
-		  bufptr = buffer;
+		  ptr = str;
 
-		mxmlElementSetAttr(function, "name", bufptr);
+		mxmlElementSetAttr(function, "name", ptr);
 
 		if (scope)
 		  mxmlElementSetAttr(function, "scope", scope);
 
 #ifdef DEBUG
-                fprintf(stderr, "function: %s\n", buffer);
+                fprintf(stderr, "function: %s\n", str);
 		fprintf(stderr, "    scope = %s\n", scope ? scope : "(null)");
 		fprintf(stderr, "    comment = %p\n", comment);
 		fprintf(stderr, "    child = (%p) %s\n",
@@ -3135,15 +3305,15 @@ scan_file(const char  *filename,	/* I - Filename */
 	        * Argument definition...
 		*/
 
-                if (strcmp(buffer, "void"))
+                if (strcmp(str, "void"))
 		{
 	          mxmlNewText(type, type->child != NULL &&
 		                    type->last_child->value.text.string[0] != '(' &&
 				    type->last_child->value.text.string[0] != '*',
-			      buffer);
+			      str);
 
 #ifdef DEBUG
-                  fprintf(stderr, "Argument: <<<< %s >>>\n", buffer);
+                  fprintf(stderr, "Argument: <<<< %s >>>\n", str);
 #endif /* DEBUG */
 
 	          variable = add_variable(function, "argument", type);
@@ -3163,12 +3333,12 @@ scan_file(const char  *filename,	/* I - Filename */
 	        if (typedefnode || structclass)
 		{
 #ifdef DEBUG
-                  fprintf(stderr, "Typedef/struct/class: <<<< %s >>>>\n", buffer);
+                  fprintf(stderr, "Typedef/struct/class: <<<< %s >>>>\n", str);
 #endif /* DEBUG */
 
 		  if (typedefnode)
 		  {
-		    mxmlElementSetAttr(typedefnode, "name", buffer);
+		    mxmlElementSetAttr(typedefnode, "name", str);
 
                     sort_node(tree, typedefnode);
 		  }
@@ -3179,7 +3349,7 @@ scan_file(const char  *filename,	/* I - Filename */
 		    fprintf(stderr, "setting struct/class name to %s!\n",
 		            type->last_child->value.text.string);
 #endif /* DEBUG */
-		    mxmlElementSetAttr(structclass, "name", buffer);
+		    mxmlElementSetAttr(structclass, "name", str);
 
 		    sort_node(tree, structclass);
 		    structclass = NULL;
@@ -3202,11 +3372,11 @@ scan_file(const char  *filename,	/* I - Filename */
 		  */
 
 #ifdef DEBUG
-                  fprintf(stderr, "Typedef: <<<< %s >>>\n", buffer);
+                  fprintf(stderr, "Typedef: <<<< %s >>>\n", str);
 #endif /* DEBUG */
 
 		  typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
-		  mxmlElementSetAttr(typedefnode, "name", buffer);
+		  mxmlElementSetAttr(typedefnode, "name", str);
 		  mxmlDelete(type->child);
 
                   sort_node(tree, typedefnode);
@@ -3239,10 +3409,10 @@ scan_file(const char  *filename,	/* I - Filename */
 	          mxmlNewText(type, type->child != NULL &&
 		                    type->last_child->value.text.string[0] != '(' &&
 				    type->last_child->value.text.string[0] != '*',
-			      buffer);
+			      str);
 
 #ifdef DEBUG
-                  fprintf(stderr, "Variable: <<<< %s >>>>\n", buffer);
+                  fprintf(stderr, "Variable: <<<< %s >>>>\n", str);
                   fprintf(stderr, "    scope = %s\n", scope ? scope : "(null)");
 #endif /* DEBUG */
 
@@ -3258,23 +3428,23 @@ scan_file(const char  *filename,	/* I - Filename */
 	      else
               {
 #ifdef DEBUG
-                fprintf(stderr, "Identifier: <<<< %s >>>>\n", buffer);
+                fprintf(stderr, "Identifier: <<<< %s >>>>\n", str);
 #endif /* DEBUG */
 
 	        mxmlNewText(type, type->child != NULL &&
 		                  type->last_child->value.text.string[0] != '(' &&
 				  type->last_child->value.text.string[0] != '*',
-			    buffer);
+			    str);
 	      }
 	    }
-	    else if (enumeration && !isdigit(buffer[0] & 255))
+	    else if (enumeration && !isdigit(str[0] & 255))
 	    {
 #ifdef DEBUG
-	      fprintf(stderr, "Constant: <<<< %s >>>\n", buffer);
+	      fprintf(stderr, "Constant: <<<< %s >>>\n", str);
 #endif /* DEBUG */
 
 	      constant = mxmlNewElement(MXML_NO_PARENT, "constant");
-	      mxmlElementSetAttr(constant, "name", buffer);
+	      mxmlElementSetAttr(constant, "name", str);
 	      sort_node(enumeration, constant);
 	    }
 	    else if (type)
@@ -3309,7 +3479,7 @@ scan_file(const char  *filename,	/* I - Filename */
   * All done, return with no errors...
   */
 
-  return (0);
+  return (1);
 }
 
 
@@ -3401,6 +3571,106 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
     mxmlAdd(tree, MXML_ADD_BEFORE, temp, node);
   else
     mxmlAdd(tree, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, node);
+}
+
+
+/*
+ * 'stringbuf_append()' - Append a Unicode character to a string buffer.
+ */
+
+static int				/* O - 1 on success, 0 on failure */
+stringbuf_append(stringbuf_t *buffer,	/* I - String buffer */
+                 int         ch)	/* I - Character */
+{
+  if (ch < 0x80)
+  {
+    if (buffer->bufptr < (buffer->buffer + sizeof(buffer->buffer) - 1))
+    {
+      *(buffer->bufptr)++ = (char)ch;
+      return (1);
+    }
+  }
+  else if (ch < 0x800)
+  {
+    if (buffer->bufptr < (buffer->buffer + sizeof(buffer->buffer) - 2))
+    {
+      *(buffer->bufptr)++ = (char)(0xc0 | ((ch >> 6) & 0x1f));
+      *(buffer->bufptr)++ = (char)(0x80 | (ch & 0x3f));
+      return (1);
+    }
+  }
+  else if (ch < 0x10000)
+  {
+    if (buffer->bufptr < (buffer->buffer + sizeof(buffer->buffer) - 3))
+    {
+      *(buffer->bufptr)++ = (char)(0xe0 | ((ch >> 12) & 0x0f));
+      *(buffer->bufptr)++ = (char)(0x80 | ((ch >> 6) & 0x3f));
+      *(buffer->bufptr)++ = (char)(0x80 | (ch & 0x3f));
+      return (1);
+    }
+  }
+  else
+  {
+    if (buffer->bufptr < (buffer->buffer + sizeof(buffer->buffer) - 4))
+    {
+      *(buffer->bufptr)++ = (char)(0xf0 | ((ch >> 18) & 0x07));
+      *(buffer->bufptr)++ = (char)(0x80 | ((ch >> 12) & 0x3f));
+      *(buffer->bufptr)++ = (char)(0x80 | ((ch >> 6) & 0x3f));
+      *(buffer->bufptr)++ = (char)(0x80 | (ch & 0x3f));
+      return (1);
+    }
+  }
+
+  return (0);
+}
+
+
+/*
+ * 'stringbuf_clear()' - Clear a string buffer.
+ */
+
+static void
+stringbuf_clear(stringbuf_t *buffer)	/* I - String buffer */
+{
+  buffer->bufptr = buffer->buffer;
+}
+
+
+/*
+ * 'stringbuf_get()' - Get a C string of a string buffer.
+ */
+
+static char *				/* O - C string */
+stringbuf_get(stringbuf_t *buffer)	/* I - String buffer */
+{
+  *(buffer->bufptr) = '\0';
+
+  return (buffer->buffer);
+}
+
+
+/*
+ * 'stringbuf_getlast()' - Get the last character in a string buffer.
+ */
+
+static int				/* O - Last character or EOF */
+stringbuf_getlast(stringbuf_t *buffer)	/* I - String buffer */
+{
+  if (buffer->bufptr > buffer->buffer)
+    return (buffer->bufptr[-1]);
+  else
+    return (EOF);
+}
+
+
+/*
+ * 'stringbuf_length()' - Get the length of the string buffer.
+ */
+
+static size_t				/* O - Length of string buffer */
+stringbuf_length(stringbuf_t *buffer)	/* I - String buffer */
+{
+  return (buffer->bufptr - buffer->buffer);
 }
 
 
