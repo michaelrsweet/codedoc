@@ -23,7 +23,7 @@ LIBS	=	-lmxml -lz -lm
 OPTIM	=	-Os -g
 #OPTIM	=	-g -fsanitize=address
 OPTIONS	=
-#OPTIONS	=	-DDEBUG
+#OPTIONS	=	-DDEBUG=1
 
 OBJS	=	codedoc.o mmd.o zipc.o
 TARGETS	=	codedoc
@@ -42,6 +42,19 @@ install:	$(TARGETS)
 	cp codedoc $(bindir)
 	mkdir -p $(mandir)/man1
 	cp codedoc.1 $(mandir)/man1
+
+TESTOPTIONS	=	\
+			--author "Michael R Sweet" \
+			--body README.md \
+			--copyright "Copyright © 2003-2018 by Michael R Sweet" \
+			--coverimage codedoc.png \
+			--docversion $(VERSION) \
+			--title "Test Documentation"
+
+test:		codedoc
+	./codedoc $(TESTOPTIONS) test.xml testfiles/*.cxx >test.html
+	./codedoc $(TESTOPTIONS) --man test test.xml >test.man
+	./codedoc $(TESTOPTIONS) --epub test.epub test.xml
 
 codedoc:	$(OBJS)
 	$(CC) $(LDFLAGS) -o codedoc $(OBJS) $(LIBS)

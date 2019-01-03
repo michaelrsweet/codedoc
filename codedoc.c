@@ -2013,8 +2013,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 
 #ifdef DEBUG
-  fprintf(stderr, "scan_file(filename=\"%s\", fp=%p, tree=%p)\n", filename,
-          fp, tree);
+  fprintf(stderr, "scan_file(file.filename=\"%s\", .fp=%p, tree=%p)\n", file->filename, file->fp, tree);
 #endif /* DEBUG */
 
  /*
@@ -2257,7 +2256,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
 		          comment->last_child);
 
-                  if (scan_file(file, structclass))
+                  if (!scan_file(file, structclass))
 		  {
 		    mxmlDelete(comment);
 		    return (0);
@@ -2343,7 +2342,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		else if (type && type->child &&
 		         !strcmp(type->child->value.text.string, "extern"))
                 {
-                  if (scan_file(file, tree))
+                  if (!scan_file(file, tree))
 		  {
 		    mxmlDelete(comment);
 		    return (0);

@@ -1,2 +1,6 @@
 *.o
 codedoc
+test.epub
+test.html
+test.man
+test.xml
