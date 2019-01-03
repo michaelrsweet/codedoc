@@ -4197,6 +4197,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   * Make the EPUB archive...
   */
 
+  /* TODO: Improve error reporting */
   if ((epub = zipcOpen(epubfile, "w")) == NULL)
   {
     fprintf(stderr, "codedoc: Unable to create \"%s\": %s\n", epubfile, strerror(errno));
@@ -4396,10 +4397,10 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   else
     status = -1;
 
+  status |= zipcClose(epub);
+
   if (status)
-    fprintf(stderr, "codedoc: Unable to write \"%s\": %s\n", epubfile, zipcError(epub));
-  else if (zipcClose(epub))
-    fprintf(stderr, "codedoc: Unable to write \"%s\": %s\n", epubfile, strerror(errno));
+    fprintf(stderr, "codedoc: Unable to write \"%s\".\n", epubfile);
 }
 
 

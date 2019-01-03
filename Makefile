@@ -47,7 +47,7 @@ TESTOPTIONS	=	\
 			--author "Michael R Sweet" \
 			--body README.md \
 			--copyright "Copyright © 2003-2018 by Michael R Sweet" \
-			--coverimage codedoc.png \
+			--coverimage codedoc-256.png \
 			--docversion $(VERSION) \
 			--title "Test Documentation"
 
