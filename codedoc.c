@@ -4105,7 +4105,17 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
 
 
  /*
-  * Start by writing the XHTML content...
+  * Verify we have everything we need...
+  */
+
+  if (coverimage && access(coverimage, R_OK))
+  {
+    fprintf(stderr, "codedoc: Unable to open cover image \"%s\": %s\n", coverimage, strerror(errno));
+    exit(1);
+  }
+
+ /*
+  * Write the XHTML content...
   */
 
   strlcpy(xhtmlfile, epubfile, sizeof(xhtmlfile));
@@ -4114,7 +4124,11 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   else
     strlcat(xhtmlfile, ".xhtml", sizeof(xhtmlfile));
 
-  fp = fopen(xhtmlfile, "w");
+  if ((fp = fopen(xhtmlfile, "w")) == NULL)
+  {
+    fprintf(stderr, "codedoc: Unable to create temporary XHTML file \"%s\": %s\n", xhtmlfile, strerror(errno));
+    exit (1);
+  }
 
  /*
   * Standard header...
@@ -4197,12 +4211,11 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   * Make the EPUB archive...
   */
 
-  /* TODO: Improve error reporting */
   if ((epub = zipcOpen(epubfile, "w")) == NULL)
   {
     fprintf(stderr, "codedoc: Unable to create \"%s\": %s\n", epubfile, strerror(errno));
     unlink(xhtmlfile);
-    return;
+    exit(1);
   }
 
  /*
@@ -4400,7 +4413,10 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   status |= zipcClose(epub);
 
   if (status)
-    fprintf(stderr, "codedoc: Unable to write \"%s\".\n", epubfile);
+  {
+    fprintf(stderr, "codedoc: Unable to write \"%s\": %s\n", epubfile, strerror(errno));
+    exit(1);
+  }
 }
 
 
