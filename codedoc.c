@@ -6034,7 +6034,7 @@ write_scu(FILE        *out,	/* I - Output file */
       if (!inscope)
       {
 	inscope = 1;
-	fprintf(out, "&#160;&#160;%s:<br>\n", scopes[i]);
+	fprintf(out, "&#160;&#160;%s:%s\n", scopes[i], br);
       }
 
       fputs("&#160;&#160;&#160;&#160;", out);
