@@ -16,8 +16,9 @@ utility.
 Changes in v1.0
 ---------------
 
-- Fixed a potential crash bug in mxmldoc found by fuzzing.
+- Fixed potential crash bugs in mxmldoc found by fuzzing.
 - The `mxmldoc` program now sets the EPUB subject ("Programming").
+- Improved EPUB error reporting and output.
 
 
 Building Codedoc
