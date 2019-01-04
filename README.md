@@ -17,6 +17,7 @@ Changes in v3.0
 ---------------
 
 - Fixed potential crash bugs in mxmldoc found by fuzzing.
+- The `--header` and `--footer` options now support markdown.
 - The `mxmldoc` program now sets the EPUB subject ("Programming").
 - Improved EPUB error reporting and output.
 - Man page output now uses the ISO date format (yyyy-mm-dd)
