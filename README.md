@@ -1,4 +1,4 @@
-Codedoc v1.0
+Codedoc v3.0
 ============
 
 Codedoc is a documentation generator that scans the specified C and C++ source
@@ -13,12 +13,15 @@ Codedoc was originally bundled with the Mini-XML library as the `mxmldoc`
 utility.
 
 
-Changes in v1.0
+Changes in v3.0
 ---------------
 
 - Fixed potential crash bugs in mxmldoc found by fuzzing.
 - The `mxmldoc` program now sets the EPUB subject ("Programming").
 - Improved EPUB error reporting and output.
+- Man page output now uses the ISO date format (yyyy-mm-dd)
+- Dropped support for `--framed basename` since frame sets are deprecated in
+  HTML 5.
 
 
 Building Codedoc
@@ -59,6 +62,8 @@ The codedoc project page provides access to the Github issue tracking page:
 
 Legal Stuff
 -----------
+
+Copyright © 2003-2019 by Michael R Sweet
 
 Codedoc is licensed under the Apache License Version 2.0 with an exception to
 allow linking against GPL2/LGPL2-only software.  See the files "LICENSE" and

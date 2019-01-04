@@ -22,6 +22,34 @@
 #  include <dirent.h>
 #  include <unistd.h>
 #endif /* !_WIN32 */
+/* Emulate safe string functions as needed */
+#ifndef __APPLE__
+#  define strlcat(dst,src,dstsize) codedoc_strlcat(dst,src,dstsize)
+static size_t codedoc_strlcat(char *dst, const char *src, size_t dstsize)
+{
+  size_t dstlen, srclen;
+  dstlen = strlen(dst);
+  if (dstsize < (dstlen + 1))
+    return (dstlen);
+  dstsize -= dstlen + 1;
+  if ((srclen = strlen(src)) > dstsize)
+    srclen = dstsize;
+  memmove(dst + dstlen, src, srclen);
+  dst[dstlen + srclen] = '\0';
+  return (dstlen = srclen);
+}
+#  define strlcpy(dst,src,dstsize) codedoc_strlcpy(dst,src,dstsize)
+static size_t codedoc_strlcpy(char *dst, const char *src, size_t dstsize)
+{
+  size_t srclen = strlen(src);
+  dstsize --;
+  if (srclen > dstsize)
+    srclen = dstsize;
+  memmove(dst, src, srclen);
+  dst[srclen] = '\0';
+  return (srclen);
+}
+#endif /* !__APPLE__ */
 
 
 /*
@@ -192,7 +220,7 @@ static void		write_element(FILE *out, mxml_node_t *doc, mxml_node_t *element, in
 static void		write_epub(const char *epubfile, const char *section, const char *title, const char *author, const char *copyright, const char *docversion, const char *cssfile, const char *coverimage, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
 static void		write_file(FILE *out, const char *file, int mode);
 static void		write_function(FILE *out, int mode, mxml_node_t *doc, mxml_node_t *function, int level);
-static void		write_html(const char *framefile, const char *section, const char *title, const char *author, const char *copyright, const char *docversion, const char *cssfile, const char *coverimage, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
+static void		write_html(const char *section, const char *title, const char *author, const char *copyright, const char *docversion, const char *cssfile, const char *coverimage, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
 static void		write_html_body(FILE *out, int mode, const char *bodyfile, mmd_t *body, mxml_node_t *doc);
 static void		write_html_head(FILE *out, int mode, const char *section, const char *title, const char *author, const char *copyright, const char *docversion, const char *cssfile);
 static void		write_html_toc(FILE *out, const char *title, toc_t *toc, const char  *filename, const char  *target);
@@ -221,7 +249,6 @@ main(int  argc,				/* I - Number of command-line args */
 		*docversion = NULL,	/* Documentation set version */
                 *epubfile = NULL,	/* EPUB filename */
 		*footerfile = NULL,	/* Footer file */
-		*framefile = NULL,	/* Framed HTML basename */
 		*headerfile = NULL,	/* Header file */
 		*bodyfile = NULL,	/* Body file */
                 *coverimage = NULL,	/* Cover image file */
@@ -305,15 +332,6 @@ main(int  argc,				/* I - Number of command-line args */
       else
         usage(NULL);
     }
-    else if (!strcmp(argv[i], "--docset"))
-    {
-     /*
-      * Set documentation set directory...
-      */
-
-      fputs("codedoc: Sorry, Xcode documentation sets are no longer supported.\n", stderr);
-      usage(NULL);
-    }
     else if (!strcmp(argv[i], "--docversion") && !docversion)
     {
      /*
@@ -352,18 +370,6 @@ main(int  argc,				/* I - Number of command-line args */
       else
         usage(NULL);
     }
-    else if (!strcmp(argv[i], "--framed") && !framefile)
-    {
-     /*
-      * Set base filename for framed HTML output...
-      */
-
-      i ++;
-      if (i < argc)
-        framefile = argv[i];
-      else
-        usage(NULL);
-    }
     else if (!strcmp(argv[i], "--header") && !headerfile)
     {
      /*
@@ -376,7 +382,7 @@ main(int  argc,				/* I - Number of command-line args */
       else
         usage(NULL);
     }
-    else if ((!strcmp(argv[i], "--body") || !strcmp(argv[i], "--intro")) && !bodyfile)
+    else if (!strcmp(argv[i], "--body") && !bodyfile)
     {
      /*
       * Set body file...
@@ -473,16 +479,11 @@ main(int  argc,				/* I - Number of command-line args */
 	    {
 	      codedoc = NULL;
 
-	      fprintf(stderr,
-	              "codedoc: Unable to read the XML documentation file "
-		      "\"%s\"!\n", argv[i]);
+	      fprintf(stderr, "codedoc: Unable to read the XML documentation file \"%s\".\n", argv[i]);
 	    }
-	    else if ((codedoc = mxmlFindElement(doc, doc, "codedoc", NULL,
-                                        	NULL, MXML_DESCEND)) == NULL)
+	    else if ((codedoc = mxmlFindElement(doc, doc, "codedoc", NULL, NULL, MXML_DESCEND)) == NULL)
 	    {
-	      fprintf(stderr,
-	              "codedoc: XML documentation file \"%s\" is missing "
-		      "<codedoc> node!!\n", argv[i]);
+	      fprintf(stderr, "codedoc: XML documentation file \"%s\" is missing the <codedoc> node.\n", argv[i]);
 
 	      mxmlDelete(doc);
 	      doc = NULL;
@@ -544,9 +545,7 @@ main(int  argc,				/* I - Number of command-line args */
 
       if (mxmlSaveFile(doc, fp, ws_cb))
       {
-	fprintf(stderr,
-	        "codedoc: Unable to write the XML documentation file \"%s\": "
-		"%s!\n", xmlfile, strerror(errno));
+	fprintf(stderr, "codedoc: Unable to write the XML documentation file \"%s\": %s\n", xmlfile, strerror(errno));
 	fclose(fp);
 	mxmlDelete(doc);
 	return (1);
@@ -556,9 +555,7 @@ main(int  argc,				/* I - Number of command-line args */
     }
     else
     {
-      fprintf(stderr,
-              "codedoc: Unable to create the XML documentation file \"%s\": "
-	      "%s!\n", xmlfile, strerror(errno));
+      fprintf(stderr, "codedoc: Unable to create the XML documentation file \"%s\": %s\n", xmlfile, strerror(errno));
       mxmlDelete(doc);
       return (1);
     }
@@ -612,7 +609,7 @@ main(int  argc,				/* I - Number of command-line args */
         * Write HTML documentation...
         */
 
-        write_html(framefile, section, title, author, copyright, docversion, cssfile, coverimage, headerfile, bodyfile, body, codedoc, footerfile);
+        write_html(section, title, author, copyright, docversion, cssfile, coverimage, headerfile, bodyfile, body, codedoc, footerfile);
         break;
 
     case OUTPUT_MAN :
@@ -3793,21 +3790,22 @@ usage(const char *option)		/* I - Unknown option */
     printf("codedoc: Bad option \"%s\".\n\n", option);
 
   puts("Usage: codedoc [options] [filename.xml] [source files] >filename.html");
+  puts("       codedoc [options] [filename.xml] [source files] --epub filename.epub");
+  puts("       codedoc [options] [filename.xml] [source files] --man name >name.3");
   puts("Options:");
-  puts("    --author name              Set author name");
-  puts("    --body bodyfile            Set body file (markdown supported)");
-  puts("    --copyright text           Set copyright text");
-  puts("    --coverimage image.png     Set cover image (EPUB)");
-  puts("    --css filename.css         Set CSS stylesheet file");
-  puts("    --docversion version       Set documentation version");
+  puts("    --author \"name\"            Set author name");
+  puts("    --body filename            Set body file (markdown supported)");
+  puts("    --copyright \"text\"         Set copyright text");
+  puts("    --coverimage filename.png  Set cover image (EPUB, HTML)");
+  puts("    --css filename.css         Set CSS stylesheet file (EPUB, HTML)");
+  puts("    --docversion \"version\"     Set documentation version");
   puts("    --epub filename.epub       Generate EPUB file");
-  puts("    --footer footerfile        Set footer file");
-  puts("    --framed basename          Generate framed HTML to basename*.html");
-  puts("    --header headerfile        Set header file");
+  puts("    --footer filename          Set footer file");
+  puts("    --header filename          Set header file");
   puts("    --man name                 Generate man page");
   puts("    --no-output                Do no generate documentation file");
-  puts("    --section section          Set section name");
-  puts("    --title title              Set documentation title");
+  puts("    --section \"section\"        Set section name");
+  puts("    --title \"title\"            Set documentation title");
   puts("    --version                  Show codedoc version");
 
   exit(1);
@@ -4614,8 +4612,7 @@ write_function(FILE        *out,	/* I - Output file */
  */
 
 static void
-write_html(const char  *framefile,	/* I - Framed HTML basename */
-	   const char  *section,	/* I - Section */
+write_html(const char  *section,	/* I - Section */
 	   const char  *title,		/* I - Title */
            const char  *author,		/* I - Author's name */
            const char  *copyright,	/* I - Copyright string */
@@ -4628,9 +4625,6 @@ write_html(const char  *framefile,	/* I - Framed HTML basename */
 	   mxml_node_t *doc,		/* I - XML documentation */
            const char  *footerfile)	/* I - Footer file */
 {
-  FILE		*out;			/* Output file */
-  const char	*basename;		/* Base filename for framed output */
-  char		filename[1024];		/* Current output filename */
   toc_t		*toc;			/* Table of contents */
 
 
@@ -4640,131 +4634,17 @@ write_html(const char  *framefile,	/* I - Framed HTML basename */
 
   toc = build_toc(doc, bodyfile, body, OUTPUT_HTML);
 
-  if (framefile)
-  {
-   /*
-    * Get the basename of the frame file...
-    */
-
-    if ((basename = strrchr(framefile, '/')) != NULL)
-      basename ++;
-    else
-      basename = framefile;
-
-    if (strstr(basename, ".html"))
-      fputs("codedoc: Frame base name should not contain .html extension.\n", stderr);
-
-   /*
-    * Create the container HTML file for the frames...
-    */
-
-    snprintf(filename, sizeof(filename), "%s.html", framefile);
-
-    if ((out = fopen(filename, "w")) == NULL)
-    {
-      fprintf(stderr, "codedoc: Unable to create \"%s\": %s\n", filename,
-              strerror(errno));
-      return;
-    }
-
-    fputs("<!doctype html>\n"
-          "<html>\n"
-          "  <head>\n"
-	  "    <title>", out);
-    write_string(out, title, OUTPUT_HTML);
-    fputs("</title>\n", out);
-
-    if (section)
-      fprintf(out, "    <meta name=\"keywords\" content=\"%s\">\n", section);
-
-    fputs("    <meta http-equiv=\"Content-Type\" "
-          "content=\"text/html;charset=utf-8\">\n"
-          "\t<meta name=\"creator\" content=\"" VERSION "\">\n"
-          "\t<meta name=\"author\" content=\"", out);
-    write_string(out, author, OUTPUT_HTML);
-    fputs("\">\n"
-          "    <meta name=\"copyright\" content=\"", out);
-    write_string(out, copyright, OUTPUT_HTML);
-    fputs("\">\n"
-          "    <meta name=\"version\" content=\"", out);
-    write_string(out, docversion, OUTPUT_HTML);
-    fputs("\">\n"
-          "  </head>\n", out);
-
-    fputs("  <frameset cols=\"250,*\">\n", out);
-    fprintf(out, "    <frame src=\"%s-toc.html\">\n", basename);
-    fprintf(out, "    <frame name=\"body\" src=\"%s-body.html\">\n", basename);
-    fputs("  </frameset>\n"
-          "  <noframes>\n"
-	  "    <h1>", out);
-    write_string(out, title, OUTPUT_HTML);
-    fprintf(out,
-            "</h1>\n"
-            "    <ul>\n"
-	    "      <li><a href=\"%s-toc.html\">Table of Contents</a></li>\n"
-	    "      <li><a href=\"%s-body.html\">Body</a></li>\n"
-	    "    </ul>\n", basename, basename);
-    fputs("  </noframes>\n"
-          "</html>\n", out);
-    fclose(out);
-
-   /*
-    * Write the table-of-contents file...
-    */
-
-    snprintf(filename, sizeof(filename), "%s-toc.html", framefile);
-
-    if ((out = fopen(filename, "w")) == NULL)
-    {
-      fprintf(stderr, "codedoc: Unable to create \"%s\": %s\n", filename,
-              strerror(errno));
-      return;
-    }
-
-    write_html_head(out, OUTPUT_HTML, section, title, author, copyright, docversion, cssfile);
-
-    if (coverimage)
-    {
-      fputs("<p><img src=\"", out);
-      write_string(out, coverimage, OUTPUT_HTML);
-      fputs("\" width=\"100%\"></p>\n", out);
-    }
-
-    snprintf(filename, sizeof(filename), "%s-body.html", basename);
-
-    write_html_toc(out, title, toc, filename, "body");
-
-    fputs("  </body>\n"
-          "</html>\n", out);
-    fclose(out);
-
-   /*
-    * Finally, open the body file...
-    */
-
-    snprintf(filename, sizeof(filename), "%s-body.html", framefile);
-
-    if ((out = fopen(filename, "w")) == NULL)
-    {
-      fprintf(stderr, "codedoc: Unable to create \"%s\": %s\n", filename,
-              strerror(errno));
-      return;
-    }
-  }
-  else
-    out = stdout;
-
  /*
   * Standard header...
   */
 
-  write_html_head(out, OUTPUT_HTML, section, title, author, copyright, docversion, cssfile);
+  write_html_head(stdout, OUTPUT_HTML, section, title, author, copyright, docversion, cssfile);
 
-  if (!framefile && coverimage)
+  if (coverimage)
   {
-    fputs("<p><img src=\"", out);
-    write_string(out, coverimage, OUTPUT_HTML);
-    fputs("\" width=\"100%\"></p>\n", out);
+    fputs("<p><img src=\"", stdout);
+    write_string(stdout, coverimage, OUTPUT_HTML);
+    fputs("\" width=\"100%\"></p>\n", stdout);
   }
 
  /*
@@ -4777,7 +4657,7 @@ write_html(const char  *framefile,	/* I - Framed HTML basename */
     * Use custom header...
     */
 
-    write_file(out, headerfile, OUTPUT_HTML);
+    write_file(stdout, headerfile, OUTPUT_HTML);
   }
   else
   {
@@ -4785,22 +4665,22 @@ write_html(const char  *framefile,	/* I - Framed HTML basename */
     * Use standard header...
     */
 
-    fputs("    <h1 class=\"title\">", out);
-    write_string(out, title, OUTPUT_HTML);
-    fputs("</h1>\n", out);
+    fputs("    <h1 class=\"title\">", stdout);
+    write_string(stdout, title, OUTPUT_HTML);
+    fputs("</h1>\n", stdout);
 
     if (author)
     {
-      fputs("    <p>", out);
-      write_string(out, author, OUTPUT_HTML);
-      fputs("</p>\n", out);
+      fputs("    <p>", stdout);
+      write_string(stdout, author, OUTPUT_HTML);
+      fputs("</p>\n", stdout);
     }
 
     if (copyright)
     {
-      fputs("    <p>", out);
-      write_string(out, copyright, OUTPUT_HTML);
-      fputs("</p>\n", out);
+      fputs("    <p>", stdout);
+      write_string(stdout, copyright, OUTPUT_HTML);
+      fputs("</p>\n", stdout);
     }
   }
 
@@ -4808,8 +4688,7 @@ write_html(const char  *framefile,	/* I - Framed HTML basename */
   * Table of contents...
   */
 
-  if (!framefile)
-    write_html_toc(out, title, toc, NULL, NULL);
+  write_html_toc(stdout, title, toc, NULL, NULL);
 
   free_toc(toc);
 
@@ -4817,9 +4696,9 @@ write_html(const char  *framefile,	/* I - Framed HTML basename */
   * Body...
   */
 
-  fputs("    <div class=\"body\">\n", out);
+  puts("    <div class=\"body\">");
 
-  write_html_body(out, OUTPUT_HTML, bodyfile, body, doc);
+  write_html_body(stdout, OUTPUT_HTML, bodyfile, body, doc);
 
  /*
   * Footer...
@@ -4831,19 +4710,12 @@ write_html(const char  *framefile,	/* I - Framed HTML basename */
     * Use custom footer...
     */
 
-    write_file(out, footerfile, OUTPUT_HTML);
+    write_file(stdout, footerfile, OUTPUT_HTML);
   }
 
-  fputs("    </div>\n"
-        "  </body>\n"
-        "</html>\n", out);
-
- /*
-  * Close output file as needed...
-  */
-
-  if (out != stdout)
-    fclose(out);
+  puts("    </div>\n"
+       "  </body>\n"
+       "</html>");
 }
 
 
@@ -5478,14 +5350,14 @@ write_man(const char  *man_name,	/* I - Name of manpage */
   *
   * Get the current date, using the SOURCE_DATE_EPOCH environment variable, if
   * present, for the number of seconds since the epoch - this enables
-  * reproducible builds (Issue #193).
+  * reproducible builds (Mini-XML Issue #193).
   */
 
   if ((source_date_epoch = getenv("SOURCE_DATE_EPOCH")) == NULL || (curtime = (time_t)strtol(source_date_epoch, NULL, 10)) <= 0)
     curtime = time(NULL);
 
   curdate = localtime(&curtime);
-  strftime(buffer, sizeof(buffer), "%x", curdate);
+  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d", curdate->tm_year + 1900, curdate->tm_mon + 1, curdate->tm_mday);
 
   printf(".TH %s %s \"%s\" \"%s\" \"%s\"\n", man_name, section ? section : "3",
          title ? title : "", buffer, title ? title : "");

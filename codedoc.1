@@ -8,7 +8,7 @@
 .\" Licensed under Apache License v2.0.  See the file "LICENSE" for more
 .\" information.
 .\"
-.TH codedoc 1 "codedoc" "2019-01-02" "Michael R Sweet"
+.TH codedoc 1 "codedoc" "2019-01-04" "Michael R Sweet"
 .SH NAME
 codedoc \- code documentation utility
 .SH SYNOPSIS
@@ -23,13 +23,17 @@ codedoc \- code documentation utility
 [ \-\-author
 .I author
 ] [ \-\-body
-.I bodyfile
+.I filename.md
 ] [ \-\-copyright
 .I copyright
+] [ \-\-coverimage
+.I filename.png
+] [ \-\-css
+.I filename.css
 ] [ \-\-footer
-.I footerfile
+.I filename.html
 ] [ \-\-header
-.I headerfile
+.I filename.html
 ] [ \-\-section
 .I section
 ] [ \-\-title
@@ -42,39 +46,16 @@ codedoc \- code documentation utility
 .I filename.html
 .br
 .B codedoc
-\-\-framed
-.I basename
 [ \-\-author
 .I author
 ] [ \-\-body
-.I bodyfile
+.I filename.{man,md}
 ] [ \-\-copyright
 .I copyright
 ] [ \-\-footer
-.I footerfile
+.I footerfile.man
 ] [ \-\-header
-.I headerfile
-] [ \-\-section
-.I section
-] [ \-\-title
-.I title
-] [
-.I filename.xml
-] [
-.I source file(s)
-]
-.br
-.B codedoc
-[ \-\-author
-.I author
-] [ \-\-body
-.I bodyfile
-] [ \-\-copyright
-.I copyright
-] [ \-\-footer
-.I footerfile
-] [ \-\-header
-.I headerfile
+.I headerfile.man
 ] \-\-man
 .I manpage
 [ \-\-section
@@ -94,21 +75,19 @@ codedoc \- code documentation utility
 [ \-\-author
 .I author
 ] [ \-\-body
-.I bodyfile
+.I filename.md
 ] [ \-\-copyright
 .I copyright
 ] [ \-\-coverimage
-.I image.png
+.I filename.png
+] [ \-\-css
+.I filename.css
 ] [ \-\-docversion
 .I version
-] [ \-\-feedname
-.I name
-] [ \-\-feedurl
-.I url
 ] [ \-\-footer
-.I footerfile
+.I footerfile.xhtml
 ] [ \-\-header
-.I headerfile
+.I headerfile.xhtml
 ] [ \-\-section
 .I section
 ] [ \-\-title
@@ -143,26 +122,29 @@ however it was specifically written to handle code with documentation that is fo
 \fB\-\-author \fI"author name"\fR
 Specifies the name of the documentation author.
 .TP 5
-\fB\-\-body \fIbodyfile\fR
+\fB\-\-body \fIfilename\fR
 Inserts the specified file between the table of contents and references.
+This file can be markdown, man, or HTML source.
 .TP 5
 \fB\-\-copyright \fI"copyright text"\fR
 Specifies the copyright text to use.
 .TP 5
-\fB\-\-docversion \fIversion\fR
+\fB\-\-coverimage \fIfilename.png\fR
+Specifies the cover image to use (EPUB and HTML output only).
+.TP 5
+\fB\-\-css \fIfilename.css\fR
+Specifies the stylesheet to use (EPUB and HTML output only).
+.TP 5
+\fB\-\-docversion \fI"version"\fR
 Specifies the version number for the generated documentation.
 .TP 5
 \fB\-\-epub \fIfilename.epub\fR
 Creates an EPUB book with the specified filename.
 .TP 5
-\fB\-\-footer \fIfooterfile\fR
+\fB\-\-footer \fIfilename\fR
 Inserts the specified file at the bottom of the output documentation.
 .TP 5
-\fB\-\-framed \fIbasename\fR
-Creates HTML documentation using frames - one for the table-of-contents and
-one for the body.
-.TP 5
-\fB\-\-header \fIheaderfile\fR
+\fB\-\-header \fIfilename\fR
 Inserts the specified file at the top of the output documentation.
 .TP 5
 \fB\-\-man \fImanpage\fR
