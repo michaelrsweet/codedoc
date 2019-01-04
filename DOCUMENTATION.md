@@ -105,8 +105,8 @@ Annotating Your Code
 Codedoc looks for in-line comments to describe the functions, types, and
 constants in your code.  Codedoc documents all public names it finds in your
 source files - any names starting with the underscore character (_)
-or names that are documented with the [`@private@`](#at-directives) directive
-are treated as private and are not documented.
+or names that are documented with the [`@private@`](#-directives-in-comments)
+directive are treated as private and are not documented.
 
 Comments appearing directly before a function or type definition are used to
 document that function or type.  Comments appearing after argument, definition,
@@ -152,8 +152,8 @@ will be shown as:
 > mathematical monks chanting the first 100 digits of PI.
 
 
-At Directives
--------------
+@ Directives in Comments
+------------------------
 
 Comments can also include the following special `@name ...@`
 directive strings:

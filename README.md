@@ -50,7 +50,8 @@ The default install prefix is `/usr/local`, which can be overridden using the
 Documentation
 -------------
 
-The `codedoc.1` man page provides documentation on how to use it.
+The codedoc man page provides documentation on how to use it.  Further
+documentation can be found in the file "DOCUMENTATION.md".
 
 
 Getting Help And Reporting Problems
@@ -66,6 +67,5 @@ Legal Stuff
 
 Copyright © 2003-2019 by Michael R Sweet
 
-Codedoc is licensed under the Apache License Version 2.0 with an exception to
-allow linking against GPL2/LGPL2-only software.  See the files "LICENSE" and
-"NOTICE" for more information.
+Codedoc is licensed under the Apache License Version 2.0.  See the files
+"LICENSE" and "NOTICE" for more information.
