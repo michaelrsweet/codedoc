@@ -3800,10 +3800,10 @@ usage(const char *option)		/* I - Unknown option */
   puts("    --css filename.css         Set CSS stylesheet file (EPUB, HTML)");
   puts("    --docversion \"version\"     Set documentation version");
   puts("    --epub filename.epub       Generate EPUB file");
-  puts("    --footer filename          Set footer file");
-  puts("    --header filename          Set header file");
+  puts("    --footer filename          Set footer file (markdown supported)");
+  puts("    --header filename          Set header file (markdown supported)");
   puts("    --man name                 Generate man page");
-  puts("    --no-output                Do no generate documentation file");
+  puts("    --no-output                Do not generate documentation file");
   puts("    --section \"section\"        Set section name");
   puts("    --title \"title\"            Set documentation title");
   puts("    --version                  Show codedoc version");
@@ -4427,57 +4427,87 @@ write_file(FILE       *out,		/* I - Output file */
            const char *file,		/* I - File to copy */
            int        mode)		/* I - Output mode */
 {
-  FILE	*fp;				/* Copy file */
-  char	line[8192];			/* Line from file */
-
-
-  if ((fp = fopen(file, "r")) == NULL)
+  if (is_markdown(file))
   {
-    fprintf(stderr, "codedoc: Unable to open \"%s\": %s\n", file,
-            strerror(errno));
-    return;
-  }
+   /*
+    * Convert markdown source to the output format...
+    */
 
-  if (mode == OUTPUT_EPUB)
-  {
-    char	*ptr;			/* Pointer into line */
+    mmd_t *mmd = mmdLoad(file);		/* Markdown document */
 
-    while (fgets(line, sizeof(line), fp))
+    if (mmd)
     {
-      for (ptr = line; *ptr; ptr ++)
-      {
-        if (!strncmp(ptr, "&nbsp;", 6))
-        {
-          ptr += 5;
-          fputs("&#160;", out);
-        }
-        else if (!strncmp(ptr, "&copy;", 6))
-        {
-          ptr += 5;
-          fputs("&#169;", out);
-        }
-        else if (!strncmp(ptr, "&reg;", 5))
-        {
-          ptr += 4;
-          fputs("&#174;", out);
-        }
-        else if (!strncmp(ptr, "&trade;", 7))
-        {
-          ptr += 6;
-          fputs("&#8482;", out);
-        }
-        else
-          fputc(*ptr, out);
-      }
+      markdown_write_block(out, mmd, mode);
+      mmdDelete(mmd);
+    }
+    else
+    {
+      fprintf(stderr, "codedoc: Unable to open \"%s\": %s\n", file, strerror(errno));
+      exit(1);
     }
   }
   else
   {
-    while (fgets(line, sizeof(line), fp))
-      fputs(line, out);
-  }
+   /*
+    * Copy non-markdown source...
+    */
 
-  fclose(fp);
+    FILE	*fp;			/* Copy file */
+    char	line[8192],		/* Line from file */
+		*ptr;			/* Pointer into line */
+
+    if ((fp = fopen(file, "r")) == NULL)
+    {
+      fprintf(stderr, "codedoc: Unable to open \"%s\": %s\n", file, strerror(errno));
+      exit(1);
+    }
+
+    while (fgets(line, sizeof(line), fp))
+    {
+      if (mode == OUTPUT_EPUB)
+      {
+       /*
+	* Convert common HTML named entities to XHTML numeric entities.
+	*/
+
+	for (ptr = line; *ptr; ptr ++)
+	{
+	  if (!strncmp(ptr, "&nbsp;", 6))
+	  {
+	    ptr += 5;
+	    fputs("&#160;", out);
+	  }
+	  else if (!strncmp(ptr, "&copy;", 6))
+	  {
+	    ptr += 5;
+	    fputs("&#169;", out);
+	  }
+	  else if (!strncmp(ptr, "&reg;", 5))
+	  {
+	    ptr += 4;
+	    fputs("&#174;", out);
+	  }
+	  else if (!strncmp(ptr, "&trade;", 7))
+	  {
+	    ptr += 6;
+	    fputs("&#8482;", out);
+	  }
+	  else
+	    fputc(*ptr, out);
+	}
+      }
+      else
+      {
+       /*
+	* Copy as-is...
+	*/
+
+	fputs(line, out);
+      }
+    }
+
+    fclose(fp);
+  }
 }
 
 
