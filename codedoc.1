@@ -23,7 +23,7 @@ codedoc \- code documentation utility
 [ \-\-author
 .I author
 ] [ \-\-body
-.I filename.md
+.I filename.{html,md}
 ] [ \-\-copyright
 .I copyright
 ] [ \-\-coverimage
@@ -31,9 +31,9 @@ codedoc \- code documentation utility
 ] [ \-\-css
 .I filename.css
 ] [ \-\-footer
-.I filename.html
+.I filename.{html,md}
 ] [ \-\-header
-.I filename.html
+.I filename.{html,md}
 ] [ \-\-section
 .I section
 ] [ \-\-title
@@ -53,9 +53,9 @@ codedoc \- code documentation utility
 ] [ \-\-copyright
 .I copyright
 ] [ \-\-footer
-.I footerfile.man
+.I filename.{man,md}
 ] [ \-\-header
-.I headerfile.man
+.I filename.{man,md}
 ] \-\-man
 .I manpage
 [ \-\-section
@@ -75,7 +75,7 @@ codedoc \- code documentation utility
 [ \-\-author
 .I author
 ] [ \-\-body
-.I filename.md
+.I filename.{html,md,xhtml}
 ] [ \-\-copyright
 .I copyright
 ] [ \-\-coverimage
@@ -85,9 +85,9 @@ codedoc \- code documentation utility
 ] [ \-\-docversion
 .I version
 ] [ \-\-footer
-.I footerfile.xhtml
+.I filename.{html,md,xhtml}
 ] [ \-\-header
-.I headerfile.xhtml
+.I filename.{html,md,xhtml}
 ] [ \-\-section
 .I section
 ] [ \-\-title
@@ -124,7 +124,7 @@ Specifies the name of the documentation author.
 .TP 5
 \fB\-\-body \fIfilename\fR
 Inserts the specified file between the table of contents and references.
-This file can be markdown, man, or HTML source.
+This file can be markdown, man, HTML, or XHTML source.
 .TP 5
 \fB\-\-copyright \fI"copyright text"\fR
 Specifies the copyright text to use.
@@ -143,9 +143,11 @@ Creates an EPUB book with the specified filename.
 .TP 5
 \fB\-\-footer \fIfilename\fR
 Inserts the specified file at the bottom of the output documentation.
+This file can be markdown, man, HTML, or XHTML source.
 .TP 5
 \fB\-\-header \fIfilename\fR
 Inserts the specified file at the top of the output documentation.
+This file can be markdown, man, HTML, or XHTML source.
 .TP 5
 \fB\-\-man \fImanpage\fR
 Generated a man page instead of HTML documentation.
