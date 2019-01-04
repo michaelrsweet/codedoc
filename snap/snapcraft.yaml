@@ -1,0 +1,27 @@
+name: codedoc
+version: 3.0
+summary: Code documentation utility.
+description: |
+  Codedoc is a documentation generator that scans the specified C and C++ source
+  files to produce an XML representation of globally accessible classes,
+  constants, enumerations, functions, structures, typedefs, unions, and
+  variables - the XML file is updated as necessary.
+
+confinement: strict
+
+grade: stable
+
+icon: codedoc-128.png
+
+apps:
+    codedoc:
+        command: bin/codedoc
+        plugs: [home]
+
+parts:
+    main:
+        plugin: make
+        source: .
+        make-install-var: prefix
+
+build-packages: [libmxml-dev, zlib1g-dev]
