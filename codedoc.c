@@ -22,34 +22,11 @@
 #  include <dirent.h>
 #  include <unistd.h>
 #endif /* !_WIN32 */
-/* Emulate safe string functions as needed */
-#ifndef __APPLE__
-#  define strlcat(dst,src,dstsize) codedoc_strlcat(dst,src,dstsize)
-static size_t codedoc_strlcat(char *dst, const char *src, size_t dstsize)
-{
-  size_t dstlen, srclen;
-  dstlen = strlen(dst);
-  if (dstsize < (dstlen + 1))
-    return (dstlen);
-  dstsize -= dstlen + 1;
-  if ((srclen = strlen(src)) > dstsize)
-    srclen = dstsize;
-  memmove(dst + dstlen, src, srclen);
-  dst[dstlen + srclen] = '\0';
-  return (dstlen = srclen);
-}
-#  define strlcpy(dst,src,dstsize) codedoc_strlcpy(dst,src,dstsize)
-static size_t codedoc_strlcpy(char *dst, const char *src, size_t dstsize)
-{
-  size_t srclen = strlen(src);
-  dstsize --;
-  if (srclen > dstsize)
-    srclen = dstsize;
-  memmove(dst, src, srclen);
-  dst[srclen] = '\0';
-  return (srclen);
-}
-#endif /* !__APPLE__ */
+
+
+/*
+ * Debug macros...
+ */
 
 #ifdef DEBUG
 #  define DEBUG_printf(...) fprintf(stderr, __VA_ARGS__)
@@ -58,80 +35,6 @@ static size_t codedoc_strlcpy(char *dst, const char *src, size_t dstsize)
 #  define DEBUG_printf(...)
 #  define DEBUG_puts(s)
 #endif /* DEBUG */
-
-
-/*
- * This program scans source and header files and produces public API
- * documentation for code that conforms to the CUPS Configuration
- * Management Plan (CMP) coding standards.  Please see the following web
- * page for details:
- *
- *     https://www.cups.org/doc/spec-cmp.html
- *
- * Using Mini-XML, this program creates and maintains an XML representation
- * of the public API code documentation which can then be converted to HTML,
- * man pages, or EPUB as desired.  The following is a poor-man's schema:
- *
- * <?xml version="1.0"?>
- * <codedoc xmlns="https://www.msweet.org"
- *  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
- *  xsi:schemaLocation="https://www.msweet.org/codedoc/codedoc.xsd">
- *
- *   <namespace name="">                        [optional...]
- *     <constant name="">
- *       <description>descriptive text</description>
- *     </constant>
- *
- *     <enumeration name="">
- *       <description>descriptive text</description>
- *       <constant name="">...</constant>
- *     </enumeration>
- *
- *     <typedef name="">
- *       <description>descriptive text</description>
- *       <type>type string</type>
- *     </typedef>
- *
- *     <function name="" scope="">
- *       <description>descriptive text</description>
- *       <argument name="" direction="I|O|IO" default="">
- *         <description>descriptive text</description>
- *         <type>type string</type>
- *       </argument>
- *       <returnvalue>
- *         <description>descriptive text</description>
- *         <type>type string</type>
- *       </returnvalue>
- *       <seealso>function names separated by spaces</seealso>
- *     </function>
- *
- *     <variable name="" scope="">
- *       <description>descriptive text</description>
- *       <type>type string</type>
- *     </variable>
- *
- *     <struct name="">
- *       <description>descriptive text</description>
- *       <variable name="">...</variable>
- *       <function name="">...</function>
- *     </struct>
- *
- *     <union name="">
- *       <description>descriptive text</description>
- *       <variable name="">...</variable>
- *     </union>
- *
- *     <class name="" parent="">
- *       <description>descriptive text</description>
- *       <class name="">...</class>
- *       <enumeration name="">...</enumeration>
- *       <function name="">...</function>
- *       <struct name="">...</struct>
- *       <variable name="">...</variable>
- *     </class>
- *   </namespace>
- * </codedoc>
- */
 
 
 /*
@@ -190,6 +93,39 @@ typedef struct
                 num_entries;		/* Number of entries */
   toc_entry_t	*entries;		/* Entries */
 } toc_t;
+
+
+/*
+ * Emulate safe string functions as needed...
+ */
+
+#ifndef __APPLE__
+#  define strlcat(dst,src,dstsize) codedoc_strlcat(dst,src,dstsize)
+static size_t codedoc_strlcat(char *dst, const char *src, size_t dstsize)
+{
+  size_t dstlen, srclen;
+  dstlen = strlen(dst);
+  if (dstsize < (dstlen + 1))
+    return (dstlen);
+  dstsize -= dstlen + 1;
+  if ((srclen = strlen(src)) > dstsize)
+    srclen = dstsize;
+  memmove(dst + dstlen, src, srclen);
+  dst[dstlen + srclen] = '\0';
+  return (dstlen = srclen);
+}
+#  define strlcpy(dst,src,dstsize) codedoc_strlcpy(dst,src,dstsize)
+static size_t codedoc_strlcpy(char *dst, const char *src, size_t dstsize)
+{
+  size_t srclen = strlen(src);
+  dstsize --;
+  if (srclen > dstsize)
+    srclen = dstsize;
+  memmove(dst, src, srclen);
+  dst[srclen] = '\0';
+  return (srclen);
+}
+#endif /* !__APPLE__ */
 
 
 /*
