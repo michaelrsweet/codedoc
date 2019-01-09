@@ -135,6 +135,7 @@ static size_t codedoc_strlcpy(char *dst, const char *src, size_t dstsize)
 static void		add_toc(toc_t *toc, int level, const char *anchor, const char *title);
 static mxml_node_t	*add_variable(mxml_node_t *parent, const char *name, mxml_node_t *type);
 static toc_t		*build_toc(mxml_node_t *doc, const char *bodyfile, mmd_t *body, int mode);
+static void		clear_whitespace(mxml_node_t *node);
 static int		filebuf_getc(filebuf_t *file);
 static int		filebuf_open(filebuf_t *file, const char *filename);
 static void		filebuf_ungetc(filebuf_t *file, int ch);
@@ -142,6 +143,8 @@ static mxml_node_t	*find_public(mxml_node_t *node, mxml_node_t *top, const char 
 static void		free_toc(toc_t *toc);
 static char		*get_comment_info(mxml_node_t *description);
 static char		*get_iso_date(time_t t);
+static mxml_node_t	*get_nth_child(mxml_node_t *node, int idx);
+static const char	*get_nth_text(mxml_node_t *node, int idx, int *whitespace);
 static char		*get_text(mxml_node_t *node, char *buffer, int buflen);
 static int		is_markdown(const char *filename);
 static mxml_type_t	load_cb(mxml_node_t *node);
@@ -628,6 +631,8 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
 		*next;			/* Next node */
   char		buffer[16384],		/* String buffer */
 		*bufptr;		/* Pointer into buffer */
+  int		whitespace = 0;		/* Whitespace before string? */
+  const char	*string = NULL;		/* String value */
 
 
   DEBUG_printf("add_variable(parent=%p, name=\"%s\", type=%p)\n", parent, name, type);
@@ -636,7 +641,7 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
   * Range check input...
   */
 
-  if (!type || !type->child)
+  if (!type || !mxmlGetFirstChild(type))
     return (NULL);
 
  /*
@@ -649,9 +654,13 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
   * Check for a default value...
   */
 
-  for (node = type->child; node; node = node->next)
-    if (!strcmp(node->value.text.string, "="))
+  for (node = mxmlGetFirstChild(type); node; node = mxmlGetNextSibling(node))
+  {
+    string = mxmlGetText(node, &whitespace);
+
+    if (!strcmp(string, "="))
       break;
+  }
 
   if (node)
   {
@@ -661,12 +670,14 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
 
     for (bufptr = buffer; node; bufptr += strlen(bufptr))
     {
-      if (node->value.text.whitespace && bufptr > buffer)
+      string = mxmlGetText(node, &whitespace);
+
+      if (whitespace && bufptr > buffer)
 	*bufptr++ = ' ';
 
-      strlcpy(bufptr, node->value.text.string, sizeof(buffer) - (size_t)(bufptr - buffer));
+      strlcpy(bufptr, string, sizeof(buffer) - (size_t)(bufptr - buffer));
 
-      next = node->next;
+      next = mxmlGetNextSibling(node);
       mxmlDelete(node);
       node = next;
     }
@@ -678,24 +689,31 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
   * Extract the argument/variable name...
   */
 
-  if (type->last_child->value.text.string[0] == ')')
+  string = mxmlGetText(mxmlGetLastChild(type), &whitespace);
+
+  if (*string == ')')
   {
    /*
     * Handle "type (*name)(args)"...
     */
 
-    for (node = type->child; node; node = node->next)
-      if (node->value.text.string[0] == '(')
+    for (node = mxmlGetFirstChild(type); node; node = mxmlGetNextSibling(node))
+    {
+      string = mxmlGetText(node, &whitespace);
+      if (*string == '(')
 	break;
+    }
 
     for (bufptr = buffer; node; bufptr += strlen(bufptr))
     {
-      if (node->value.text.whitespace && bufptr > buffer)
+      string = mxmlGetText(node, &whitespace);
+
+      if (whitespace && bufptr > buffer)
 	*bufptr++ = ' ';
 
-      strlcpy(bufptr, node->value.text.string, sizeof(buffer) - (size_t)(bufptr - buffer));
+      strlcpy(bufptr, string, sizeof(buffer) - (size_t)(bufptr - buffer));
 
-      next = node->next;
+      next = mxmlGetNextSibling(node);
       mxmlDelete(node);
       node = next;
     }
@@ -706,8 +724,8 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
     * Handle "type name"...
     */
 
-    strlcpy(buffer, type->last_child->value.text.string, sizeof(buffer));
-    mxmlDelete(type->last_child);
+    strlcpy(buffer, string, sizeof(buffer));
+    mxmlDelete(mxmlGetLastChild(type));
   }
 
  /*
@@ -1038,6 +1056,30 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
 
 
 /*
+ * 'clear_whitespace()' - Clear the whitespace value of a text node.
+ */
+
+static void
+clear_whitespace(mxml_node_t *node)	/* I - Node */
+{
+ /*
+  * Mini-XML 2.x has a bug (Issue #241) where setting the value of a node to
+  * the same pointer will cause a use-after-free error.  Right now we detect at
+  * compile time whether we need to use this workaround...
+  */
+
+#if MXML_MAJOR_VERSION < 3
+  char *s = strdup(mxmlGetText(node, NULL));
+  mxmlSetText(node, 0, s);
+  free(s);
+
+#else
+  mxmlSetText(node, 0, mxmlGetText(node, NULL));
+#endif /* MXML_MAJOR_VERSION < 3 */
+}
+
+
+/*
  * 'epub_ws_cb()' - Whitespace callback for EPUB.
  */
 
@@ -1045,7 +1087,8 @@ static const char *			/* O - Whitespace string or NULL for none */
 epub_ws_cb(mxml_node_t *node,		/* I - Element node */
            int         where)		/* I - Where value */
 {
-  int	depth;				/* Depth of node */
+  mxml_node_t	*temp;			/* Temporary node pointer */
+  int		depth;			/* Depth of node */
   static const char *spaces = "                                        ";
 					/* Whitespace (40 spaces) for indent */
 
@@ -1053,10 +1096,10 @@ epub_ws_cb(mxml_node_t *node,		/* I - Element node */
   switch (where)
   {
     case MXML_WS_BEFORE_CLOSE :
-        if (node->child && node->child->type != MXML_ELEMENT)
+        if ((temp = mxmlGetFirstChild(node)) != NULL && mxmlGetType(temp) != MXML_ELEMENT)
           return (NULL);
 
-	for (depth = -4; node; node = node->parent, depth += 2);
+	for (depth = -4; node; node = mxmlGetParent(node), depth += 2);
 	if (depth > 40)
 	  return (spaces);
 	else if (depth < 2)
@@ -1068,7 +1111,7 @@ epub_ws_cb(mxml_node_t *node,		/* I - Element node */
 	return ("\n");
 
     case MXML_WS_BEFORE_OPEN :
-	for (depth = -4; node; node = node->parent, depth += 2);
+	for (depth = -4; node; node = mxmlGetParent(node), depth += 2);
 	if (depth > 40)
 	  return (spaces);
 	else if (depth < 2)
@@ -1078,7 +1121,7 @@ epub_ws_cb(mxml_node_t *node,		/* I - Element node */
 
     default :
     case MXML_WS_AFTER_OPEN :
-        if (node->child && node->child->type != MXML_ELEMENT)
+        if ((temp = mxmlGetFirstChild(node)) != NULL && mxmlGetType(temp) != MXML_ELEMENT)
           return (NULL);
 
         return ("\n");
@@ -1269,9 +1312,9 @@ find_public(mxml_node_t *node,		/* I - Current node */
     * Look for @private@ or @exclude format@ in the comment text...
     */
 
-    for (comment = description->child; comment; comment = comment->next)
+    for (comment = mxmlGetFirstChild(description); comment; comment = mxmlGetNextSibling(comment))
     {
-      const char *s = comment->type == MXML_TEXT ? comment->value.text.string : comment->value.opaque;
+      const char *s = mxmlGetType(comment) == MXML_TEXT ? mxmlGetText(comment, NULL) : mxmlGetOpaque(comment);
       const char *exclude;
 
      /*
@@ -1299,6 +1342,7 @@ find_public(mxml_node_t *node,		/* I - Current node */
           {
             if (!strncmp(exclude, "docset", 6))
             {
+              /* Legacy, no longer supported */
               exclude += 6;
             }
             else if (!strncmp(exclude, "epub", 4))
@@ -1321,6 +1365,7 @@ find_public(mxml_node_t *node,		/* I - Current node */
             }
             else if (!strncmp(exclude, "tokens", 6))
             {
+              /* Legacy, no longer supported */
               exclude += 6;
             }
             else if (!strncmp(exclude, "xml", 3))
@@ -1432,6 +1477,42 @@ get_iso_date(time_t t)			/* I - Time value */
 
 
 /*
+ * 'get_nth_child()' - Get the Nth child node.
+ */
+
+static mxml_node_t *			/* O - Child node or NULL */
+get_nth_child(mxml_node_t *node,	/* I - Parent node */
+              int         idx)		/* I - Child node index (negative to index from end) */
+{
+  if (idx < 0)
+  {
+    for (node = mxmlGetLastChild(node); node && idx < -1; idx ++)
+      node = mxmlGetPrevSibling(node);
+  }
+  else
+  {
+    for (node = mxmlGetFirstChild(node); node && idx > 0; idx --)
+      node = mxmlGetNextSibling(node);
+  }
+
+  return (node);
+}
+
+
+/*
+ * 'get_nth_text()' - Get the text string from the Nth child node.
+ */
+
+static const char *			/* O - String value or NULL */
+get_nth_text(mxml_node_t *node,		/* I - Parent node */
+             int         idx,		/* I - Child node index (negative to index from end) */
+             int         *whitespace)	/* O - Whitespace value (NULL for don't care) */
+{
+  return (mxmlGetText(get_nth_child(node, idx), whitespace));
+}
+
+
+/*
  * 'get_text()' - Get the text for a node.
  */
 
@@ -1442,34 +1523,41 @@ get_text(mxml_node_t *node,		/* I - Node to get */
 {
   char		*ptr,			/* Pointer into buffer */
 		*end;			/* End of buffer */
-  int		len;			/* Length of node */
+  size_t	len;			/* Length of node */
   mxml_node_t	*current;		/* Current node */
 
 
   ptr = buffer;
   end = buffer + buflen - 1;
 
-  for (current = node->child; current && ptr < end; current = current->next)
+  for (current = mxmlGetFirstChild(node); current && ptr < end; current = mxmlGetNextSibling(current))
   {
-    if (current->type == MXML_TEXT)
+    mxml_type_t type = mxmlGetType(current);
+
+    if (type == MXML_TEXT)
     {
-      if (current->value.text.whitespace)
+      int whitespace;
+      const char *string = mxmlGetText(current, &whitespace);
+
+      if (whitespace)
         *ptr++ = ' ';
 
-      len = (int)strlen(current->value.text.string);
-      if (len > (int)(end - ptr))
-        len = (int)(end - ptr);
+      len = strlen(string);
+      if (len > (size_t)(end - ptr))
+        len = (size_t)(end - ptr);
 
-      memcpy(ptr, current->value.text.string, len);
+      memcpy(ptr, string, len);
       ptr += len;
     }
-    else if (current->type == MXML_OPAQUE)
+    else if (type == MXML_OPAQUE)
     {
-      len = (int)strlen(current->value.opaque);
-      if (len > (int)(end - ptr))
-        len = (int)(end - ptr);
+      const char *opaque = mxmlGetOpaque(current);
 
-      memcpy(ptr, current->value.opaque, len);
+      len = strlen(opaque);
+      if (len > (size_t)(end - ptr))
+        len = (size_t)(end - ptr);
+
+      memcpy(ptr, opaque, len);
       ptr += len;
     }
   }
@@ -1501,7 +1589,7 @@ is_markdown(const char *filename)	/* I - File to check */
 static mxml_type_t			/* O - Node type */
 load_cb(mxml_node_t *node)		/* I - Node */
 {
-  if (!strcmp(node->value.element.name, "description"))
+  if (!strcmp(mxmlGetElement(node), "description"))
     return (MXML_OPAQUE);
   else
     return (MXML_TEXT);
@@ -1932,7 +2020,11 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		*type,			/* <type> node */
 		*description,		/* <description> node */
 		*node,			/* Current node */
+		*child,			/* First child node */
 		*next;			/* Next node */
+  int		whitespace;		/* Current whitespace value */
+  const char	*string,		/* Current string value */
+		*next_string;		/* Next string value */
 #if DEBUG > 1
   mxml_node_t	*temp;			/* Temporary node */
   int		oldstate,		/* Previous state */
@@ -1971,7 +2063,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
   structclass  = NULL;
   fstructclass = NULL;
 
-  if (!strcmp(tree->value.element.name, "class"))
+  if (!strcmp(mxmlGetElement(tree), "class"))
     scope = "private";
   else
     scope = NULL;
@@ -2011,7 +2103,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  {
                     DEBUG_puts("Identifier: <<<< / >>>\n");
 
-                    ch = type->last_child->value.text.string[0];
+                    ch = get_nth_text(type, -1, NULL)[0];
 		    mxmlNewText(type, isalnum(ch) || ch == '_', "/");
 		  }
 		}
@@ -2021,8 +2113,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	        DEBUG_puts("    #preprocessor...\n");
 
 	        state = STATE_PREPROCESSOR;
-	        while (comment->child)
-	          mxmlDelete(comment->child);
+	        while (mxmlGetFirstChild(comment))
+	          mxmlDelete(mxmlGetFirstChild(comment));
 		break;
 
             case '\'' :			/* Character constant */
@@ -2040,21 +2132,24 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		break;
 
             case '{' :
+                string      = get_nth_text(type, 0, &whitespace);
+                next_string = get_nth_text(type, 1, NULL);
+
 #ifdef DEBUG
 	        DEBUG_printf("    open brace, function=%p, type=%p...\n", function, type);
                 if (type)
-                  DEBUG_printf("    type->child=\"%s\"...\n", type->child->value.text.string);
+                  DEBUG_printf("    type->child=\"%s\"...\n", string);
 #endif /* DEBUG */
 
 	        if (function)
 		{
                   mxml_node_t *temptype = mxmlFindElement(returnvalue, returnvalue, "type", NULL, NULL, MXML_DESCEND);
 
-		  DEBUG_printf("    returnvalue type=%p(%s)\n", temptype, temptype ? temptype->child->value.text.string : "null");
+		  DEBUG_printf("    returnvalue type=%p(%s)\n", temptype, temptype ? mxmlGetText(mxmlGetFirstChild(temptype), NULL) : "null");
 
-		  if (temptype && temptype->child &&
-                      !strcmp(temptype->child->value.text.string, "static") &&
-                      !strcmp(tree->value.element.name, "codedoc"))
+		  if (temptype && mxmlGetFirstChild(temptype) &&
+                      !strcmp(mxmlGetText(mxmlGetFirstChild(temptype), NULL), "static") &&
+                      !strcmp(mxmlGetElement(tree), "codedoc"))
                   {
                    /*
                     * Remove static functions...
@@ -2075,67 +2170,66 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  function    = NULL;
 		  returnvalue = NULL;
 		}
-		else if (type && type->child &&
-		         ((!strcmp(type->child->value.text.string, "typedef") &&
-			   type->child->next &&
-			   (!strcmp(type->child->next->value.text.string, "struct") ||
-			    !strcmp(type->child->next->value.text.string, "union") ||
-			    !strcmp(type->child->next->value.text.string, "class"))) ||
-			  !strcmp(type->child->value.text.string, "union") ||
-			  !strcmp(type->child->value.text.string, "struct") ||
-			  !strcmp(type->child->value.text.string, "class")))
+		else if (type && string &&
+		         ((!strcmp(string, "typedef") && next_string && (!strcmp(next_string, "struct") || !strcmp(next_string, "union") || !strcmp(next_string, "class"))) ||
+			  !strcmp(string, "union") || !strcmp(string, "struct") || !strcmp(string, "class")))
 		{
 		 /*
 		  * Start of a class or structure...
 		  */
 
-		  if (!strcmp(type->child->value.text.string, "typedef"))
+		  if (!strcmp(string, "typedef"))
 		  {
                     DEBUG_puts("    starting typedef...\n");
 
 		    typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
-		    mxmlDelete(type->child);
+		    mxmlDelete(mxmlGetFirstChild(type));
+
+		    string      = next_string;
+		    next_string = get_nth_text(type, 1, NULL);
 		  }
 		  else
 		    typedefnode = NULL;
 
-		  structclass = mxmlNewElement(MXML_NO_PARENT,
-		                               type->child->value.text.string);
+		  structclass = mxmlNewElement(MXML_NO_PARENT, string);
 
 #ifdef DEBUG
-                  DEBUG_printf("%c%s: <<<< %s >>>\n", toupper(type->child->value.text.string[0]), type->child->value.text.string + 1, type->child->next ? type->child->next->value.text.string : "(noname)");
+                  DEBUG_printf("%c%s: <<<< %s >>>\n", toupper(string[0]), string + 1, next_string ? next_string : "(noname)");
 
                   DEBUG_puts("    type =");
-                  for (node = type->child; node; node = node->next)
-		    DEBUG_printf(" \"%s\"", node->value.text.string);
+                  for (node = mxmlGetFirstChild(type); node; node = mxmlGetNextSibling(node))
+		    DEBUG_printf(" \"%s\"", mxmlGetText(node, NULL));
 		  DEBUG_puts("\n");
 
                   DEBUG_printf("    scope = %s\n", scope ? scope : "(null)");
 #endif /* DEBUG */
 
-                  if (type->child->next)
+                  if (next_string)
 		  {
-		    mxmlElementSetAttr(structclass, "name",
-		                       type->child->next->value.text.string);
+		    mxmlElementSetAttr(structclass, "name", next_string);
 		    sort_node(tree, structclass);
 		  }
 
-                  if (typedefnode && type->child)
-		    type->child->value.text.whitespace = 0;
-                  else if (structclass && type->child &&
-		           type->child->next && type->child->next->next)
+                  child = mxmlGetFirstChild(type);
+
+                  if (typedefnode && child)
+                  {
+                    clear_whitespace(mxmlGetFirstChild(type));
+		  }
+                  else if (structclass && child && mxmlGetNextSibling(child) && mxmlGetNextSibling(mxmlGetNextSibling(child)))
 		  {
 		    char temp[65536], *tempptr;
 
-		    for (tempptr = temp, node = type->child->next->next; node;
-			 tempptr += strlen(temp))
+		    for (tempptr = temp, node = mxmlGetNextSibling(mxmlGetNextSibling(child)); node; tempptr += strlen(temp))
 		    {
-		      if (node->value.text.whitespace && tempptr > temp && tempptr < (temp + sizeof(temp) - 1))
+		      string = mxmlGetText(node, &whitespace);
+
+		      if (whitespace && tempptr > temp && tempptr < (temp + sizeof(temp) - 1))
 			*tempptr++ = ' ';
 
-		      strlcpy(tempptr, node->value.text.string, sizeof(temp) - (size_t)(tempptr - temp));
+		      strlcpy(tempptr, string, sizeof(temp) - (size_t)(tempptr - temp));
 
-		      next = node->next;
+		      next = mxmlGetNextSibling(node);
 		      mxmlDelete(node);
 		      node = next;
 		    }
@@ -2151,29 +2245,27 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    type = NULL;
 		  }
 
-		  if (typedefnode && comment->last_child)
+		  if (typedefnode && mxmlGetLastChild(comment))
 		  {
 		   /*
 		    * Copy comment for typedef as well as class/struct/union...
 		    */
 
-		    mxmlNewOpaque(comment, comment->last_child->value.opaque);
+		    mxmlNewOpaque(comment, mxmlGetOpaque(mxmlGetLastChild(comment)));
 		    description = mxmlNewElement(typedefnode, "description");
 
-		    DEBUG_printf("    duplicating comment %p/%p for typedef...\n", comment->last_child, comment->child);
+		    DEBUG_printf("    duplicating comment %p/%p for typedef...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
-		    update_comment(typedefnode, comment->last_child);
-		    mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
-		            comment->last_child);
+		    update_comment(typedefnode, mxmlGetLastChild(comment));
+		    mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
 		  }
 
 		  description = mxmlNewElement(structclass, "description");
 
-		  DEBUG_printf("    adding comment %p/%p to %s...\n", comment->last_child, comment->child, structclass->value.element.name);
+		  DEBUG_printf("    adding comment %p/%p to %s...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment), mxmlGetElement(structclass));
 
-		  update_comment(structclass, comment->last_child);
-		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
-		          comment->last_child);
+		  update_comment(structclass, mxmlGetLastChild(comment));
+		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
 
                   if (!scan_file(file, structclass))
 		  {
@@ -2186,70 +2278,67 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
                   structclass = NULL;
                   break;
                 }
-		else if (type && type->child && type->child->next &&
-		         (!strcmp(type->child->value.text.string, "enum") ||
-			  (!strcmp(type->child->value.text.string, "typedef") &&
-			   !strcmp(type->child->next->value.text.string, "enum"))))
+		else if (type && string && next_string && (!strcmp(string, "enum") || (!strcmp(string, "typedef") && !strcmp(next_string, "enum"))))
                 {
 		 /*
 		  * Enumeration type...
 		  */
 
-		  if (!strcmp(type->child->value.text.string, "typedef"))
+		  if (!strcmp(string, "typedef"))
 		  {
                     DEBUG_puts("    starting typedef...\n");
 
 		    typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
-		    mxmlDelete(type->child);
+		    mxmlDelete(mxmlGetFirstChild(type));
+		    string      = next_string;
+		    next_string = get_nth_text(type, 1, NULL);
 		  }
 		  else
 		    typedefnode = NULL;
 
 		  enumeration = mxmlNewElement(MXML_NO_PARENT, "enumeration");
 
-                  DEBUG_printf("Enumeration: <<<< %s >>>\n", type->child->next ? type->child->next->value.text.string : "(noname)");
+                  DEBUG_printf("Enumeration: <<<< %s >>>\n", next_string ? next_string : "(noname)");
 
-                  if (type->child->next)
+                  if (next_string)
 		  {
-		    mxmlElementSetAttr(enumeration, "name",
-		                       type->child->next->value.text.string);
+		    mxmlElementSetAttr(enumeration, "name", next_string);
 		    sort_node(tree, enumeration);
 		  }
 
-                  if (typedefnode && type->child)
-		    type->child->value.text.whitespace = 0;
+                  if (typedefnode && mxmlGetFirstChild(type))
+                  {
+                    clear_whitespace(mxmlGetFirstChild(type));
+		  }
                   else
 		  {
 		    mxmlDelete(type);
 		    type = NULL;
 		  }
 
-		  if (typedefnode && comment->last_child)
+		  if (typedefnode && mxmlGetLastChild(comment))
 		  {
 		   /*
 		    * Copy comment for typedef as well as class/struct/union...
 		    */
 
-		    mxmlNewOpaque(comment, comment->last_child->value.opaque);
+		    mxmlNewOpaque(comment, mxmlGetOpaque(mxmlGetLastChild(comment)));
 		    description = mxmlNewElement(typedefnode, "description");
 
-		    DEBUG_printf("    duplicating comment %p/%p for typedef...\n", comment->last_child, comment->child);
+		    DEBUG_printf("    duplicating comment %p/%p for typedef...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
-		    update_comment(typedefnode, comment->last_child);
-		    mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
-		            comment->last_child);
+		    update_comment(typedefnode, mxmlGetLastChild(comment));
+		    mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
 		  }
 
 		  description = mxmlNewElement(enumeration, "description");
 
-		  DEBUG_printf("    adding comment %p/%p to enumeration...\n", comment->last_child, comment->child);
+		  DEBUG_printf("    adding comment %p/%p to enumeration...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
-		  update_comment(enumeration, comment->last_child);
-		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
-		          comment->last_child);
+		  update_comment(enumeration, mxmlGetLastChild(comment));
+		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
 		}
-		else if (type && type->child &&
-		         !strcmp(type->child->value.text.string, "extern"))
+		else if (type && string && !strcmp(string, "extern"))
                 {
                   if (!scan_file(file, tree))
 		  {
@@ -2285,8 +2374,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  braces --;
 		  if (braces == 0)
 		  {
-		    while (comment->child)
-		      mxmlDelete(comment->child);
+		    while (mxmlGetFirstChild(comment))
+		      mxmlDelete(mxmlGetFirstChild(comment));
 		  }
 		}
 		else
@@ -2321,7 +2410,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  * Check for "void" argument...
 		  */
 
-		  if (type->child && type->child->next)
+		  if ((child = mxmlGetFirstChild(type)) != NULL && mxmlGetNextSibling(child))
 		    variable = add_variable(function, "argument", type);
 		  else
 		    mxmlDelete(type);
@@ -2335,17 +2424,17 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 	    case ';' :
                 DEBUG_puts("Identifier: <<<< ; >>>\n");
-		DEBUG_printf("    enumeration=%p, function=%p, type=%p, type->child=%p, typedefnode=%p\n", enumeration, function, type, type ? type->child : NULL, typedefnode);
+		DEBUG_printf("    enumeration=%p, function=%p, type=%p, type->child=%p, typedefnode=%p\n", enumeration, function, type, mxmlGetFirstChild(type), typedefnode);
 
 		if (function)
 		{
                   mxml_node_t *temptype = mxmlFindElement(returnvalue, returnvalue, "type", NULL, NULL, MXML_DESCEND);
 
-                  DEBUG_printf("    returnvalue type=%p(%s)\n", temptype, temptype ? temptype->child->value.text.string : "null");
+                  DEBUG_printf("    returnvalue type=%p(%s)\n", temptype, temptype ? mxmlGetText(mxmlGetFirstChild(temptype), NULL) : "null");
 
-		  if (temptype && temptype->child &&
-                      !strcmp(temptype->child->value.text.string, "static") &&
-                      !strcmp(tree->value.element.name, "codedoc"))
+		  if (temptype && mxmlGetFirstChild(temptype) &&
+                      !strcmp(get_nth_text(temptype, 0, NULL), "static") &&
+                      !strcmp(mxmlGetElement(tree), "codedoc"))
                   {
                    /*
                     * Remove static functions...
@@ -2355,7 +2444,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
                     mxmlDelete(function);
                   }
-                  else if (!strcmp(tree->value.element.name, "class"))
+                  else if (!strcmp(mxmlGetElement(tree), "class"))
 		  {
 		    DEBUG_puts("    ADDING FUNCTION TO CLASS\n");
 		    sort_node(tree, function);
@@ -2374,8 +2463,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  * See if we have a typedef...
 		  */
 
-		  if (type->child &&
-		      !strcmp(type->child->value.text.string, "typedef"))
+                  string = get_nth_text(type, 0, NULL);
+		  if (string && !strcmp(string, "typedef"))
 		  {
 		   /*
 		    * Yes, add it!
@@ -2383,36 +2472,34 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		    typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
 
-		    for (node = type->child->next; node; node = node->next)
-		      if (!strcmp(node->value.text.string, "("))
+		    for (node = get_nth_child(type, 1); node; node = mxmlGetNextSibling(node))
+		      if (!strcmp(mxmlGetText(node, NULL), "("))
 			break;
 
                     if (node)
 		    {
-		      for (node = node->next; node; node = node->next)
-			if (strcmp(node->value.text.string, "*"))
+		      for (node = mxmlGetNextSibling(node); node; node = mxmlGetNextSibling(node))
+			if (strcmp(mxmlGetText(node, NULL), "*"))
 			  break;
                     }
 
                     if (!node)
-		      node = type->last_child;
+		      node = mxmlGetLastChild(type);
 
-		    DEBUG_printf("    ADDING TYPEDEF FOR %p(%s)...\n", node, node->value.text.string);
+		    DEBUG_printf("    ADDING TYPEDEF FOR %p(%s)...\n", node, mxmlGetText(node, NULL));
 
-		    mxmlElementSetAttr(typedefnode, "name",
-				       node->value.text.string);
+		    mxmlElementSetAttr(typedefnode, "name", mxmlGetText(node, NULL));
 		    sort_node(tree, typedefnode);
 
-                    if (type->child != node)
-		      mxmlDelete(type->child);
+                    if (mxmlGetFirstChild(type) != node)
+		      mxmlDelete(mxmlGetFirstChild(type));
 
 		    mxmlDelete(node);
 
-		    if (type->child)
-		      type->child->value.text.whitespace = 0;
+		    if (mxmlGetFirstChild(type))
+		      clear_whitespace(mxmlGetFirstChild(type));
 
-		    mxmlAdd(typedefnode, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
-			    type);
+		    mxmlAdd(typedefnode, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, type);
 		    type = NULL;
 		    break;
 		  }
@@ -2422,19 +2509,17 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    * Add enum typedef...
 		    */
 
-                    node = type->child;
+                    node = mxmlGetFirstChild(type);
 
-		    DEBUG_printf("    ADDING TYPEDEF FOR %p(%s)...\n", node, node->value.text.string);
+		    DEBUG_printf("    ADDING TYPEDEF FOR %p(%s)...\n", node, mxmlGetText(node, NULL));
 
-		    mxmlElementSetAttr(typedefnode, "name",
-				       node->value.text.string);
+		    mxmlElementSetAttr(typedefnode, "name", mxmlGetText(node, NULL));
 		    sort_node(tree, typedefnode);
 		    mxmlDelete(type);
 
 		    type = mxmlNewElement(typedefnode, "type");
                     mxmlNewText(type, 0, "enum");
-		    mxmlNewText(type, 1,
-		                mxmlElementGetAttr(enumeration, "name"));
+		    mxmlNewText(type, 1, mxmlElementGetAttr(enumeration, "name"));
 		    enumeration = NULL;
 		    type = NULL;
 		    break;
@@ -2459,7 +2544,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		{
                   DEBUG_puts("Identifier: <<<< * >>>\n");
 
-                  ch = type->last_child->value.text.string[0];
+                  ch = get_nth_text(type, -1, NULL)[0];
 		  mxmlNewText(type, isalnum(ch) || ch == '_', "*");
 		}
 		break;
@@ -2487,7 +2572,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		{
                   DEBUG_puts("Identifier: <<<< + >>>\n");
 
-                  ch = type->last_child->value.text.string[0];
+                  ch = get_nth_text(type, -1, NULL)[0];
 		  mxmlNewText(type, isalnum(ch) || ch == '_', "+");
 		}
 		break;
@@ -2497,7 +2582,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		{
                   DEBUG_puts("Identifier: <<<< - >>>\n");
 
-                  ch = type->last_child->value.text.string[0];
+                  ch = get_nth_text(type, -1, NULL)[0];
 		  mxmlNewText(type, isalnum(ch) || ch == '_', "-");
 		}
 		break;
@@ -2507,7 +2592,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		{
                   DEBUG_puts("Identifier: <<<< = >>>\n");
 
-                  ch = type->last_child->value.text.string[0];
+                  ch = get_nth_text(type, -1, NULL)[0];
 		  mxmlNewText(type, isalnum(ch) || ch == '_', "=");
 		}
 		break;
@@ -2544,16 +2629,16 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    {
 		      char *commstr = stringbuf_get(&buffer);
 
-        	      if (comment->child != comment->last_child)
+        	      if (mxmlGetFirstChild(child) != mxmlGetLastChild(comment))
 		      {
-			DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", comment->child, comment->child ? comment->child->value.text.string : "", comment->last_child, comment->last_child ? comment->last_child->value.text.string : "");
+			DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", mxmlGetFirstChild(comment), mxmlGetFirstChild(comment) ? get_nth_text(comment, 0, NULL) : "", mxmlGetLastChild(comment), mxmlGetLastChild(comment) ? get_nth_text(comment, -1, NULL) : "");
 
-			mxmlDelete(comment->child);
+			mxmlDelete(mxmlGetFirstChild(comment));
 
-			DEBUG_printf("    new comment %p, last comment %p...\n", comment->child, comment->last_child);
+			DEBUG_printf("    new comment %p, last comment %p...\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
 		      }
 
-                      DEBUG_printf("    processing comment, variable=%p, constant=%p, typedefnode=%p, tree=\"%s\"\n", variable, constant, typedefnode, tree->value.element.name);
+                      DEBUG_printf("    processing comment, variable=%p, constant=%p, typedefnode=%p, tree=\"%s\"\n", variable, constant, typedefnode, mxmlGetElement(tree));
 
 		      if (variable)
 		      {
@@ -2569,7 +2654,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 			{
 			  description = mxmlNewElement(variable, "description");
 
-			  DEBUG_printf("    adding comment %p/%p to variable...\n", comment->last_child, comment->child);
+			  DEBUG_printf("    adding comment %p/%p to variable...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 			  mxmlNewOpaque(comment, commstr);
 			  update_comment(variable, mxmlNewOpaque(description, commstr));
@@ -2591,7 +2676,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 			{
 			  description = mxmlNewElement(constant, "description");
 
-			  DEBUG_printf("    adding comment %p/%p to constant...\n", comment->last_child, comment->child);
+			  DEBUG_printf("    adding comment %p/%p to constant...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 			  mxmlNewOpaque(comment, commstr);
 			  update_comment(constant, mxmlNewOpaque(description, commstr));
@@ -2625,7 +2710,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 			{
 			  description = mxmlNewElement(typedefnode, "description");
 
-			  DEBUG_printf("    adding comment %p/%p to typedef %s...\n", comment->last_child, comment->child, mxmlElementGetAttr(typedefnode, "name"));
+			  DEBUG_printf("    adding comment %p/%p to typedef %s...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment), mxmlElementGetAttr(typedefnode, "name"));
 
 			  mxmlNewOpaque(comment, commstr);
 			  update_comment(typedefnode, mxmlNewOpaque(description, commstr));
@@ -2646,24 +2731,24 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 			typedefnode = NULL;
 		      }
-		      else if (strcmp(tree->value.element.name, "codedoc") &&
+		      else if (strcmp(mxmlGetElement(tree), "codedoc") &&
 		               !mxmlFindElement(tree, tree, "description",
 			                        NULL, NULL, MXML_DESCEND_FIRST))
                       {
         		description = mxmlNewElement(tree, "description");
 
-			DEBUG_printf("    adding comment %p/%p to parent...\n", comment->last_child, comment->child);
+			DEBUG_printf("    adding comment %p/%p to parent...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
         		mxmlNewOpaque(comment, commstr);
 			update_comment(tree, mxmlNewOpaque(description, commstr));
 		      }
 		      else
 		      {
-		        DEBUG_printf("    before adding comment, child=%p, last_child=%p\n", comment->child, comment->last_child);
+		        DEBUG_printf("    before adding comment, child=%p, last_child=%p\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
 
         		mxmlNewOpaque(comment, commstr);
 
-		        DEBUG_printf("    after adding comment, child=%p, last_child=%p\n", comment->child, comment->last_child);
+		        DEBUG_printf("    after adding comment, child=%p, last_child=%p\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
                       }
 
 		      DEBUG_printf("C comment: <<<< %s >>>\n", commstr);
@@ -2697,16 +2782,16 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		  *commptr = '\0';
 
-        	  if (comment->child != comment->last_child)
+        	  if (mxmlGetFirstChild(comment) != mxmlGetLastChild(comment))
 		  {
-		    DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", comment->child, comment->child ? comment->child->value.text.string : "", comment->last_child, comment->last_child ? comment->last_child->value.text.string : "");
+		    DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", mxmlGetFirstChild(comment), mxmlGetFirstChild(comment) ? get_nth_text(comment, 0, NULL) : "", mxmlGetLastChild(comment), mxmlGetLastChild(comment) ? get_nth_text(comment, -1, NULL) : "");
 
-		    mxmlDelete(comment->child);
+		    mxmlDelete(mxmlGetFirstChild(comment));
 
-		    DEBUG_printf("    new comment %p, last comment %p...\n", comment->child, comment->last_child);
+		    DEBUG_printf("    new comment %p, last comment %p...\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
 		  }
 
-                  DEBUG_printf("    processing comment, variable=%p, constant=%p, typedefnode=%p, tree=\"%s\"\n", variable, constant, typedefnode, tree->value.element.name);
+                  DEBUG_printf("    processing comment, variable=%p, constant=%p, typedefnode=%p, tree=\"%s\"\n", variable, constant, typedefnode, mxmlGetElement(tree));
 
 		  if (variable)
 		  {
@@ -2722,7 +2807,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    {
 		      description = mxmlNewElement(variable, "description");
 
-		      DEBUG_printf("    adding comment %p/%p to variable...\n", comment->last_child, comment->child);
+		      DEBUG_printf("    adding comment %p/%p to variable...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		      mxmlNewOpaque(comment, commstr);
 		      update_comment(variable, mxmlNewOpaque(description, commstr));
@@ -2744,7 +2829,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    {
 		      description = mxmlNewElement(constant, "description");
 
-		      DEBUG_printf("    adding comment %p/%p to constant...\n", comment->last_child, comment->child);
+		      DEBUG_printf("    adding comment %p/%p to constant...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		      mxmlNewOpaque(comment, commstr);
 		      update_comment(constant, mxmlNewOpaque(description, commstr));
@@ -2778,7 +2863,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    {
 		      description = mxmlNewElement(typedefnode, "description");
 
-		      DEBUG_printf("    adding comment %p/%p to typedef %s...\n", comment->last_child, comment->child, mxmlElementGetAttr(typedefnode, "name"));
+		      DEBUG_printf("    adding comment %p/%p to typedef %s...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment), mxmlElementGetAttr(typedefnode, "name"));
 
 		      mxmlNewOpaque(comment, commstr);
 		      update_comment(typedefnode, mxmlNewOpaque(description, commstr));
@@ -2797,13 +2882,13 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		    typedefnode = NULL;
 		  }
-		  else if (strcmp(tree->value.element.name, "codedoc") &&
+		  else if (strcmp(mxmlGetElement(tree), "codedoc") &&
 		           !mxmlFindElement(tree, tree, "description",
 			                    NULL, NULL, MXML_DESCEND_FIRST))
                   {
         	    description = mxmlNewElement(tree, "description");
 
-		    DEBUG_printf("    adding comment %p/%p to parent...\n", comment->last_child, comment->child);
+		    DEBUG_printf("    adding comment %p/%p to parent...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		    mxmlNewOpaque(comment, commstr);
 		    update_comment(tree, mxmlNewOpaque(description, commstr));
@@ -2833,13 +2918,13 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 	    state = STATE_NONE;
 
-            if (comment->child != comment->last_child)
+            if (mxmlGetFirstChild(comment) != mxmlGetLastChild(comment))
 	    {
-	      DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", comment->child, comment->child ? comment->child->value.text.string : "", comment->last_child, comment->last_child ? comment->last_child->value.text.string : "");
+	      DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", mxmlGetFirstChild(comment), mxmlGetFirstChild(comment) ? get_nth_text(comment, 0, NULL) : "", mxmlGetLastChild(comment), mxmlGetLastChild(comment) ? get_nth_text(comment, -1, NULL) : "");
 
-	      mxmlDelete(comment->child);
+	      mxmlDelete(mxmlGetFirstChild(comment));
 
-	      DEBUG_printf("    new comment %p, last comment %p...\n", comment->child, comment->last_child);
+	      DEBUG_printf("    new comment %p, last comment %p...\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
 	    }
 
 	    if (variable)
@@ -2856,7 +2941,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	      {
 		description = mxmlNewElement(variable, "description");
 
-		DEBUG_printf("    adding comment %p/%p to variable...\n", comment->last_child, comment->child);
+		DEBUG_printf("    adding comment %p/%p to variable...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		mxmlNewOpaque(comment, commstr);
 		update_comment(variable, mxmlNewOpaque(description, commstr));
@@ -2878,7 +2963,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	      {
 		description = mxmlNewElement(constant, "description");
 
-		DEBUG_printf("    adding comment %p/%p to constant...\n", comment->last_child, comment->child);
+		DEBUG_printf("    adding comment %p/%p to constant...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		mxmlNewOpaque(comment, commstr);
 		update_comment(constant, mxmlNewOpaque(description, commstr));
@@ -2913,7 +2998,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	      {
 		description = mxmlNewElement(typedefnode, "description");
 
-		DEBUG_printf("    adding comment %p/%p to typedef %s...\n", comment->last_child, comment->child, mxmlElementGetAttr(typedefnode, "name"));
+		DEBUG_printf("    adding comment %p/%p to typedef %s...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment), mxmlElementGetAttr(typedefnode, "name"));
 
 		mxmlNewOpaque(comment, commstr);
 		update_comment(typedefnode, mxmlNewOpaque(description, commstr));
@@ -2930,13 +3015,13 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		}
               }
 	    }
-	    else if (strcmp(tree->value.element.name, "codedoc") &&
+	    else if (strcmp(mxmlGetElement(tree), "codedoc") &&
 		     !mxmlFindElement(tree, tree, "description",
 			              NULL, NULL, MXML_DESCEND_FIRST))
             {
               description = mxmlNewElement(tree, "description");
 
-	      DEBUG_printf("    adding comment %p/%p to parent...\n", comment->last_child, comment->child);
+	      DEBUG_printf("    adding comment %p/%p to parent...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 	      mxmlNewOpaque(comment, commstr);
 	      update_comment(tree, mxmlNewOpaque(description, commstr));
@@ -2960,7 +3045,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	  else if (ch == '\"')
 	  {
 	    if (type)
-	      mxmlNewText(type, type->child != NULL, stringbuf_get(&buffer));
+	      mxmlNewText(type, mxmlGetFirstChild(type) != NULL, stringbuf_get(&buffer));
 
 	    state = STATE_NONE;
 	  }
@@ -2974,7 +3059,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	  else if (ch == '\'')
 	  {
 	    if (type)
-	      mxmlNewText(type, type->child != NULL, stringbuf_get(&buffer));
+	      mxmlNewText(type, mxmlGetFirstChild(type) != NULL, stringbuf_get(&buffer));
 
 	    state = STATE_NONE;
 	  }
@@ -2995,13 +3080,13 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 	    state = STATE_NONE;
 
-            DEBUG_printf("    braces=%d, type=%p, type->child=%p, buffer=\"%s\"\n", braces, type, type ? type->child : NULL, str);
+            DEBUG_printf("    braces=%d, type=%p, type->child=%p, buffer=\"%s\"\n", braces, type, type ? mxmlGetFirstChild(type) : NULL, str);
 
             if (!braces)
 	    {
-	      if (!type || !type->child)
+	      if (!type || !mxmlGetFirstChild(type))
 	      {
-		if (!strcmp(tree->value.element.name, "class"))
+		if (!strcmp(mxmlGetElement(tree), "class"))
 		{
 		  if (!strcmp(str, "public") ||
 	              !strcmp(str, "public:"))
@@ -3033,12 +3118,12 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	      if (!type)
                 type = mxmlNewElement(MXML_NO_PARENT, "type");
 
-              DEBUG_printf("    function=%p (%s), type->child=%p, ch='%c', parens=%d\n", function, function ? mxmlElementGetAttr(function, "name") : "null", type->child, ch, parens);
+              DEBUG_printf("    function=%p (%s), type->child=%p, ch='%c', parens=%d\n", function, function ? mxmlElementGetAttr(function, "name") : "null", mxmlGetFirstChild(type), ch, parens);
 
               if (!function && ch == '(')
 	      {
-	        if (type->child &&
-		    !strcmp(type->child->value.text.string, "extern"))
+	        if (mxmlGetFirstChild(type) &&
+		    !strcmp(mxmlGetText(mxmlGetFirstChild(type), NULL), "extern"))
 		{
 		 /*
 		  * Remove external declarations...
@@ -3069,10 +3154,10 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
                 DEBUG_printf("function: %s\n", str);
 		DEBUG_printf("    scope = %s\n", scope ? scope : "(null)");
 		DEBUG_printf("    comment = %p\n", comment);
-		DEBUG_printf("    child = (%p) %s\n", comment->child, comment->child ? comment->child->value.text.string : "(null)");
-		DEBUG_printf("    last_child = (%p) %s\n", comment->last_child, comment->last_child ? comment->last_child->value.text.string : "(null)");
+		DEBUG_printf("    child = (%p) %s\n", mxmlGetFirstChild(comment), get_nth_text(comment, 0, NULL));
+		DEBUG_printf("    last_child = (%p) %s\n", mxmlGetLastChild(comment), get_nth_text(comment, -1, NULL));
 
-                if (type->last_child && (strcmp(type->last_child->value.text.string, "void") || !strcmp(type->child->value.text.string, "static")))
+                if (mxmlGetLastChild(type) && (strcmp(get_nth_text(type, -1, NULL), "void") || !strcmp(get_nth_text(type, 0, NULL), "static")))
 		{
                   returnvalue = mxmlNewElement(function, "returnvalue");
 
@@ -3080,22 +3165,20 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		  description = mxmlNewElement(returnvalue, "description");
 
-		  DEBUG_printf("    adding comment %p/%p to returnvalue...\n", comment->last_child, comment->child);
+		  DEBUG_printf("    adding comment %p/%p to returnvalue...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
-		  update_comment(returnvalue, comment->last_child);
-		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
-		          comment->last_child);
+		  update_comment(returnvalue, mxmlGetLastChild(comment));
+		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
                 }
 		else
 		  mxmlDelete(type);
 
 		description = mxmlNewElement(function, "description");
 
-		DEBUG_printf("    adding comment %p/%p to function...\n", comment->last_child, comment->child);
+		DEBUG_printf("    adding comment %p/%p to function...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
-		update_comment(function, comment->last_child);
-		mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT,
-		        comment->last_child);
+		update_comment(function, mxmlGetLastChild(comment));
+		mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
 
 		type = NULL;
 	      }
@@ -3107,10 +3190,9 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
                 if (strcmp(str, "void"))
 		{
-	          mxmlNewText(type, type->child != NULL &&
-		                    type->last_child->value.text.string[0] != '(' &&
-				    type->last_child->value.text.string[0] != '*',
-			      str);
+		  const char *last_string = get_nth_text(type, -1, NULL);
+
+	          mxmlNewText(type, mxmlGetFirstChild(type) != NULL && *last_string != '(' && *last_string != '*', str);
 
                   DEBUG_printf("Argument: <<<< %s >>>\n", str);
 
@@ -3121,7 +3203,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		type = NULL;
 	      }
-              else if (type->child && !function && (ch == ';' || ch == ','))
+              else if (mxmlGetFirstChild(type) && !function && (ch == ';' || ch == ','))
 	      {
 	        DEBUG_printf("    got semicolon, typedefnode=%p, structclass=%p\n", typedefnode, structclass);
 
@@ -3138,8 +3220,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		  if (structclass && !mxmlElementGetAttr(structclass, "name"))
 		  {
-		    DEBUG_printf("setting struct/class name to \"%s\".\n", type->last_child->value.text.string);
-
+		    DEBUG_printf("setting struct/class name to \"%s\".\n", get_nth_text(type, -1, NULL));
 		    mxmlElementSetAttr(structclass, "name", str);
 
 		    sort_node(tree, structclass);
@@ -3155,8 +3236,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  type        = NULL;
 		  typedefnode = NULL;
 		}
-		else if (type->child &&
-		         !strcmp(type->child->value.text.string, "typedef"))
+		else if (mxmlGetFirstChild(type) &&
+		         !strcmp(mxmlGetText(mxmlGetFirstChild(type), NULL), "typedef"))
 		{
 		 /*
 		  * Simple typedef...
@@ -3166,12 +3247,14 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		  typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
 		  mxmlElementSetAttr(typedefnode, "name", str);
-		  mxmlDelete(type->child);
+		  mxmlDelete(mxmlGetFirstChild(type));
 
                   sort_node(tree, typedefnode);
 
-                  if (type->child)
-		    type->child->value.text.whitespace = 0;
+                  if (mxmlGetFirstChild(type))
+                  {
+                    clear_whitespace(mxmlGetFirstChild(type));
+                  }
 
 		  mxmlAdd(typedefnode, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, type);
 		  type = NULL;
@@ -3182,9 +3265,12 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	          * Variable definition...
 		  */
 
-	          if (type->child &&
-		      !strcmp(type->child->value.text.string, "static") &&
-		      !strcmp(tree->value.element.name, "codedoc"))
+                  mxml_node_t *child = mxmlGetFirstChild(type);
+                  const char *string = get_nth_text(type, -1, NULL);
+
+	          if (child &&
+		      !strcmp(mxmlGetText(child, NULL), "static") &&
+		      !strcmp(mxmlGetElement(tree), "codedoc"))
 		  {
 		   /*
 		    * Remove static functions...
@@ -3195,10 +3281,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    break;
 		  }
 
-	          mxmlNewText(type, type->child != NULL &&
-		                    type->last_child->value.text.string[0] != '(' &&
-				    type->last_child->value.text.string[0] != '*',
-			      str);
+	          mxmlNewText(type, child != NULL && *string != '(' && *string != '*', str);
 
                   DEBUG_printf("Variable: <<<< %s >>>>\n", str);
                   DEBUG_printf("    scope = %s\n", scope ? scope : "(null)");
@@ -3214,12 +3297,12 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
               }
 	      else
               {
+		mxml_node_t *child = mxmlGetFirstChild(type);
+		const char *string = get_nth_text(type, -1, NULL);
+
                 DEBUG_printf("Identifier: <<<< %s >>>>\n", str);
 
-	        mxmlNewText(type, type->child != NULL &&
-		                  type->last_child->value.text.string[0] != '(' &&
-				  type->last_child->value.text.string[0] != '*',
-			    str);
+	        mxmlNewText(type, child != NULL && *string != '(' && *string != '*', str);
 	      }
 	    }
 	    else if (enumeration && !isdigit(str[0] & 255))
@@ -3247,8 +3330,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
       if (type)
       {
         DEBUG_puts("    type =");
-        for (temp = type->child; temp; temp = temp->next)
-	  DEBUG_printf(" \"%s\"", temp->value.text.string);
+        for (temp = mxmlGetFirstChild(type); temp; temp = mxmlGetNextSibling(temp))
+	  DEBUG_printf(" \"%s\"", mxmlGetText(temp, NULL));
 	DEBUG_puts("\n");
       }
     }
@@ -3287,7 +3370,7 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
   * Range check input...
   */
 
-  if (!tree || !node || node->parent == tree)
+  if (!tree || !node || mxmlGetParent(node) == tree)
     return;
 
  /*
@@ -3308,7 +3391,7 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
   * Delete any existing definition at this level, if one exists...
   */
 
-  if ((temp = mxmlFindElement(tree, tree, node->value.element.name,
+  if ((temp = mxmlFindElement(tree, tree, mxmlGetElement(node),
                               "name", nodename, MXML_DESCEND_FIRST)) != NULL)
   {
    /*
@@ -3330,7 +3413,7 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
   * Add the node into the tree at the proper place...
   */
 
-  for (temp = tree->child; temp; temp = temp->next)
+  for (temp = mxmlGetFirstChild(tree); temp; temp = mxmlGetNextSibling(temp))
   {
 #if DEBUG > 1
     DEBUG_printf("        temp=%p\n", temp);
@@ -3462,7 +3545,8 @@ static void
 update_comment(mxml_node_t *parent,	/* I - Parent node */
                mxml_node_t *comment)	/* I - Comment node */
 {
-  char	*ptr;				/* Pointer into comment */
+  char	*s,				/* Copy of comment */
+  	*ptr;				/* Pointer into comment */
 
 
   DEBUG_printf("update_comment(parent=%p, comment=%p)\n", parent, comment);
@@ -3478,16 +3562,16 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
   * Convert "\/" to "/"...
   */
 
-  for (ptr = strstr(comment->value.opaque, "\\/");
-       ptr;
-       ptr = strstr(ptr, "\\/"))
+  s = strdup(mxmlGetOpaque(comment));
+
+  for (ptr = strstr(s, "\\/"); ptr; ptr = strstr(ptr, "\\/"))
     safe_strcpy(ptr, ptr + 1);
 
  /*
   * Update the comment...
   */
 
-  ptr = comment->value.opaque;
+  ptr = s;
 
   if (*ptr == '\'')
   {
@@ -3509,7 +3593,7 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
       while (isspace(*ptr & 255))
         ptr ++;
 
-      safe_strcpy(comment->value.opaque, ptr);
+      safe_strcpy(s, ptr);
     }
   }
   else if (!strncmp(ptr, "I ", 2) || !strncmp(ptr, "O ", 2) ||
@@ -3523,8 +3607,8 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
     ptr = strchr(ptr, ' ');
     *ptr++ = '\0';
 
-    if (!strcmp(parent->value.element.name, "argument"))
-      mxmlElementSetAttr(parent, "direction", comment->value.opaque);
+    if (!strcmp(mxmlGetElement(parent), "argument"))
+      mxmlElementSetAttr(parent, "direction", s);
 
     while (isspace(*ptr & 255))
       ptr ++;
@@ -3535,26 +3619,27 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
     while (isspace(*ptr & 255))
       ptr ++;
 
-    safe_strcpy(comment->value.opaque, ptr);
+    safe_strcpy(s, ptr);
   }
 
  /*
   * Eliminate leading and trailing *'s...
   */
 
-  for (ptr = comment->value.opaque; *ptr == '*'; ptr ++);
+  for (ptr = s; *ptr == '*'; ptr ++);
   for (; isspace(*ptr & 255); ptr ++);
-  if (ptr > comment->value.opaque)
-    safe_strcpy(comment->value.opaque, ptr);
+  if (ptr > s)
+    safe_strcpy(s, ptr);
 
-  for (ptr = comment->value.opaque + strlen(comment->value.opaque) - 1;
-       ptr > comment->value.opaque && *ptr == '*';
-       ptr --)
+  for (ptr = s + strlen(s) - 1; ptr > s && *ptr == '*'; ptr --)
     *ptr = '\0';
-  for (; ptr > comment->value.opaque && isspace(*ptr & 255); ptr --)
+  for (; ptr > s && isspace(*ptr & 255); ptr --)
     *ptr = '\0';
 
-  DEBUG_printf("    updated comment = %s\n", comment->value.opaque);
+  DEBUG_printf("    updated comment = %s\n", s);
+
+  mxmlSetOpaque(comment, s);
+  free(s);
 }
 
 
@@ -3790,43 +3875,41 @@ write_element(FILE        *out,		/* I - Output file */
               int         mode)		/* I - Output mode */
 {
   mxml_node_t	*node;			/* Current node */
+  int		whitespace;		/* Current whitespace value */
+  const char	*string;		/* Current string value */
 
 
   if (!element)
     return;
 
-  for (node = element->child;
+  for (node = mxmlGetFirstChild(element);
        node;
        node = mxmlWalkNext(node, element, MXML_NO_DESCEND))
-    if (node->type == MXML_TEXT)
+    if (mxmlGetType(node) == MXML_TEXT)
     {
-      if (node->value.text.whitespace)
+      string = mxmlGetText(node, &whitespace);
+
+      if (whitespace)
 	putc(' ', out);
 
       if ((mode == OUTPUT_HTML || mode == OUTPUT_EPUB) &&
-          (mxmlFindElement(doc, doc, "class", "name", node->value.text.string,
-                           MXML_DESCEND) ||
-	   mxmlFindElement(doc, doc, "enumeration", "name",
-	                   node->value.text.string, MXML_DESCEND) ||
-	   mxmlFindElement(doc, doc, "struct", "name", node->value.text.string,
-                           MXML_DESCEND) ||
-	   mxmlFindElement(doc, doc, "typedef", "name", node->value.text.string,
-                           MXML_DESCEND) ||
-	   mxmlFindElement(doc, doc, "union", "name", node->value.text.string,
-                           MXML_DESCEND)))
+          (mxmlFindElement(doc, doc, "class", "name", string, MXML_DESCEND) ||
+	   mxmlFindElement(doc, doc, "enumeration", "name", string, MXML_DESCEND) ||
+	   mxmlFindElement(doc, doc, "struct", "name", string, MXML_DESCEND) ||
+	   mxmlFindElement(doc, doc, "typedef", "name", string, MXML_DESCEND) ||
+	   mxmlFindElement(doc, doc, "union", "name", string, MXML_DESCEND)))
       {
         fputs("<a href=\"#", out);
-        write_string(out, node->value.text.string, mode);
+        write_string(out, string, mode);
 	fputs("\">", out);
-        write_string(out, node->value.text.string, mode);
+        write_string(out, string, mode);
 	fputs("</a>", out);
       }
       else
-        write_string(out, node->value.text.string, mode);
+        write_string(out, string, mode);
     }
 
-  if (!strcmp(element->value.element.name, "type") && element->last_child &&
-      element->last_child->value.text.string[0] != '*')
+  if (!strcmp(mxmlGetElement(element), "type") && (string = mxmlGetText(mxmlGetLastChild(element), NULL)) != NULL && *string != '*')
     putc(' ', out);
 }
 
@@ -4344,7 +4427,7 @@ write_function(FILE        *out,	/* I - Output file */
 			   MXML_DESCEND_FIRST);
 
     fputs(prefix, out);
-    if (type->child)
+    if (mxmlGetFirstChild(type))
       write_element(out, doc, type, mode);
 
     fputs(mxmlElementGetAttr(arg, "name"), out);
@@ -4396,20 +4479,22 @@ write_function(FILE        *out,	/* I - Output file */
 
   if (description)
   {
-    for (node = description->child; node; node = node->next)
-      if (node->value.opaque &&
-	  (sep = strstr(node->value.opaque, "\n\n")) != NULL)
+    for (node = mxmlGetFirstChild(description); node; node = mxmlGetNextSibling(node))
+    {
+      const char *opaque = mxmlGetOpaque(node);
+
+      if (opaque && (sep = strstr(opaque, "\n\n")) != NULL)
       {
 	sep += 2;
 	if (*sep && strncmp(sep, "@since ", 7) &&
 	    strncmp(sep, "@deprecated@", 12))
 	  break;
       }
+    }
 
     if (node)
     {
-      fprintf(out, "<h%d class=\"discussion\">Discussion</h%d>\n", level + 1,
-	      level + 1);
+      fprintf(out, "<h%d class=\"discussion\">Discussion</h%d>\n", level + 1, level + 1);
       write_description(out, mode, description, "p", 0);
     }
   }
@@ -4547,6 +4632,8 @@ write_html_body(
 		*type;			/* Type for argument */
   const char	*name,			/* Name of function/type */
 		*defval;		/* Default value */
+  int		whitespace;		/* Current whitespace value */
+  const char	*string;		/* Current string value */
 
 
  /*
@@ -4613,29 +4700,33 @@ write_html_body(
 
       type = mxmlFindElement(scut, scut, "type", NULL, NULL, MXML_DESCEND_FIRST);
 
-      for (type = type->child; type; type = type->next)
-        if (!strcmp(type->value.text.string, "("))
+      for (type = mxmlGetFirstChild(type); type; type = mxmlGetNextSibling(type))
+      {
+        string = mxmlGetText(type, &whitespace);
+
+        if (!strcmp(string, "("))
 	  break;
 	else
 	{
-	  if (type->value.text.whitespace)
+	  if (whitespace)
 	    putc(' ', out);
 
-	  if (find_public(doc, doc, "class", type->value.text.string, mode) ||
-	      find_public(doc, doc, "enumeration", type->value.text.string, mode) ||
-	      find_public(doc, doc, "struct", type->value.text.string, mode) ||
-	      find_public(doc, doc, "typedef", type->value.text.string, mode) ||
-	      find_public(doc, doc, "union", type->value.text.string, mode))
+	  if (find_public(doc, doc, "class", string, mode) ||
+	      find_public(doc, doc, "enumeration", string, mode) ||
+	      find_public(doc, doc, "struct", string, mode) ||
+	      find_public(doc, doc, "typedef", string, mode) ||
+	      find_public(doc, doc, "union", string, mode))
 	  {
             fputs("<a href=\"#", out);
-            write_string(out, type->value.text.string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML);
 	    fputs("\">", out);
-            write_string(out, type->value.text.string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML);
 	    fputs("</a>", out);
 	  }
 	  else
-            write_string(out, type->value.text.string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML);
         }
+      }
 
       if (type)
       {
@@ -4643,39 +4734,44 @@ write_html_body(
         * Output function type...
 	*/
 
-        if (type->prev && type->prev->value.text.string[0] != '*')
+        string = mxmlGetText(mxmlGetPrevSibling(type), NULL);
+
+        if (string && *string != '*')
 	  putc(' ', out);
 
         fprintf(out, "(*%s", name);
 
-	for (type = type->next->next; type; type = type->next)
+	for (type = mxmlGetNextSibling(mxmlGetNextSibling(type)); type; type = mxmlGetNextSibling(type))
 	{
-	  if (type->value.text.whitespace)
+	  string = mxmlGetText(type, &whitespace);
+
+	  if (whitespace)
 	    putc(' ', out);
 
-	  if (find_public(doc, doc, "class", type->value.text.string, mode) ||
-	      find_public(doc, doc, "enumeration", type->value.text.string, mode) ||
-	      find_public(doc, doc, "struct", type->value.text.string, mode) ||
-	      find_public(doc, doc, "typedef", type->value.text.string, mode) ||
-	      find_public(doc, doc, "union", type->value.text.string, mode))
+	  if (find_public(doc, doc, "class", string, mode) ||
+	      find_public(doc, doc, "enumeration", string, mode) ||
+	      find_public(doc, doc, "struct", string, mode) ||
+	      find_public(doc, doc, "typedef", string, mode) ||
+	      find_public(doc, doc, "union", string, mode))
 	  {
             fputs("<a href=\"#", out);
-            write_string(out, type->value.text.string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML);
 	    fputs("\">", out);
-            write_string(out, type->value.text.string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML);
 	    fputs("</a>", out);
 	  }
 	  else
-            write_string(out, type->value.text.string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML);
         }
 
         fputs(";\n", out);
       }
       else
       {
-	type = mxmlFindElement(scut, scut, "type", NULL, NULL,
-			       MXML_DESCEND_FIRST);
-        if (type->last_child->value.text.string[0] != '*')
+	type   = mxmlFindElement(scut, scut, "type", NULL, NULL, MXML_DESCEND_FIRST);
+	string = mxmlGetText(mxmlGetLastChild(type), NULL);
+
+        if (*string != '*')
 	  putc(' ', out);
 
 	fprintf(out, "%s;\n", name);
@@ -5146,6 +5242,8 @@ write_man(const char  *man_name,	/* I - Name of manpage */
   time_t	curtime;		/* Current time */
   struct tm	*curdate;		/* Current date */
   char		buffer[1024];		/* String buffer */
+  int		whitespace;		/* Current whitespace value */
+  const char	*string;		/* Current string value */
   static const char * const scopes[] =	/* Scope strings */
 		{
 		  "private",
@@ -5292,7 +5390,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 	    if (prefix == ',')
 	      putchar(' ');
 
-	    if (type->child)
+	    if (mxmlGetFirstChild(type))
 	      write_element(stdout, doc, type, OUTPUT_MAN);
 	    fputs(mxmlElementGetAttr(arg, "name"), stdout);
             if ((defval = mxmlElementGetAttr(arg, "default")) != NULL)
@@ -5390,7 +5488,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 	                       MXML_DESCEND_FIRST);
 
 	printf("%c\n    ", prefix);
-	if (type->child)
+	if (mxmlGetFirstChild(type))
 	  write_element(stdout, doc, type, OUTPUT_MAN);
 	fputs(mxmlElementGetAttr(arg, "name"), stdout);
         if ((defval = mxmlElementGetAttr(arg, "default")) != NULL)
@@ -5478,7 +5576,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 	  if (prefix == ',')
 	    putchar(' ');
 
-	  if (type->child)
+	  if (mxmlGetFirstChild(type))
 	    write_element(stdout, doc, type, OUTPUT_MAN);
 	  fputs(mxmlElementGetAttr(arg, "name"), stdout);
           if ((defval = mxmlElementGetAttr(arg, "default")) != NULL)
@@ -5524,16 +5622,20 @@ write_man(const char  *man_name,	/* I - Name of manpage */
       type = mxmlFindElement(scut, scut, "type", NULL, NULL,
                              MXML_DESCEND_FIRST);
 
-      for (type = type->child; type; type = type->next)
-        if (!strcmp(type->value.text.string, "("))
+      for (type = mxmlGetFirstChild(type); type; type = mxmlGetNextSibling(type))
+      {
+        string = mxmlGetText(type, &whitespace);
+
+        if (!strcmp(string, "("))
 	  break;
 	else
 	{
-	  if (type->value.text.whitespace)
+	  if (whitespace)
 	    putchar(' ');
 
-          write_string(stdout, type->value.text.string, OUTPUT_MAN);
+          write_string(stdout, string, OUTPUT_MAN);
         }
+      }
 
       if (type)
       {
@@ -5543,12 +5645,14 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 
         printf(" (*%s", name);
 
-	for (type = type->next->next; type; type = type->next)
+	for (type = mxmlGetNextSibling(mxmlGetNextSibling(type)); type; type = mxmlGetNextSibling(type))
 	{
-	  if (type->value.text.whitespace)
+	  string = mxmlGetText(type, &whitespace);
+
+	  if (whitespace)
 	    putchar(' ');
 
-          write_string(stdout, type->value.text.string, OUTPUT_MAN);
+          write_string(stdout, string, OUTPUT_MAN);
         }
 
         puts(";");
@@ -5701,17 +5805,17 @@ write_scu(FILE        *out,	/* I - Output file */
   description = mxmlFindElement(scut, scut, "description", NULL,
 				NULL, MXML_DESCEND_FIRST);
 
-  fprintf(out, "<h3 class=\"%s\">%s<a id=\"%s\">%s</a></h3>\n", scut->value.element.name, get_comment_info(description), cname, cname);
+  fprintf(out, "<h3 class=\"%s\">%s<a id=\"%s\">%s</a></h3>\n", mxmlGetElement(scut), get_comment_info(description), cname, cname);
 
   if (description)
     write_description(out, mode, description, "p", 1);
 
-  fprintf(out, "<p class=\"code\">%s %s", scut->value.element.name, cname);
+  fprintf(out, "<p class=\"code\">%s %s", mxmlGetElement(scut), cname);
   if ((parent = mxmlElementGetAttr(scut, "parent")) != NULL)
     fprintf(out, " %s", parent);
   fprintf(out, " {%s\n", br);
 
-  maxscope = !strcmp(scut->value.element.name, "class") ? 3 : 1;
+  maxscope = !strcmp(mxmlGetElement(scut), "class") ? 3 : 1;
 
   for (i = 0; i < maxscope; i ++)
   {
@@ -5787,7 +5891,7 @@ write_scu(FILE        *out,	/* I - Output file */
 	if (prefix == ',')
 	  putc(' ', out);
 
-	if (type->child)
+	if (mxmlGetFirstChild(type))
 	  write_element(out, doc, type, OUTPUT_HTML);
 
 	fputs(mxmlElementGetAttr(arg, "name"), out);
@@ -5929,7 +6033,7 @@ ws_cb(mxml_node_t *node,		/* I - Element node */
 					/* Whitespace (40 spaces) for indent */
 
 
-  name = node->value.element.name;
+  name = mxmlGetElement(node);
 
   switch (where)
   {
@@ -5948,7 +6052,7 @@ ws_cb(mxml_node_t *node,		/* I - Element node */
 	    strcmp(name, "variable"))
 	  return (NULL);
 
-	for (depth = -4; node; node = node->parent, depth += 2);
+	for (depth = -4; node; node = mxmlGetParent(node), depth += 2);
 	if (depth > 40)
 	  return (spaces);
 	else if (depth < 2)
@@ -5960,7 +6064,7 @@ ws_cb(mxml_node_t *node,		/* I - Element node */
 	return ("\n");
 
     case MXML_WS_BEFORE_OPEN :
-	for (depth = -4; node; node = node->parent, depth += 2);
+	for (depth = -4; node; node = mxmlGetParent(node), depth += 2);
 	if (depth > 40)
 	  return (spaces);
 	else if (depth < 2)
