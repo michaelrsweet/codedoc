@@ -13,6 +13,12 @@ Codedoc was originally bundled with the Mini-XML library as the `mxmldoc`
 utility.
 
 
+Changes in v3.1
+---------------
+
+- Fixed compile problems with Mini-XML v3.0.
+
+
 Changes in v3.0
 ---------------
 

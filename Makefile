@@ -9,7 +9,7 @@
 # information.
 #
 
-VERSION	=	3.0
+VERSION	=	3.1
 prefix	=	$(DESTDIR)/usr/local
 includedir =	$(prefix)/include
 bindir	=	$(prefix)/bin
