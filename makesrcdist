@@ -15,4 +15,5 @@ git tag -m "Tag $version" v$version
 git push origin v$version
 
 echo Creating codedoc-$version.tar.gz...
-git archive --format tar HEAD | gzip -v9 >codedoc-$version.tar.gz
+git archive --format tar --prefix=codedoc-$version/ HEAD | gzip -v9 >codedoc-$version.tar.gz
+gpg --detach-sign codedoc-$version.tar.gz
