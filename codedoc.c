@@ -823,6 +823,7 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
   {
     char	fragment[8192],		/* Fragment from file */
 		endfrag[6],		/* End fragment */
+		lowlevel = '6',		/* Lowest heading level seen */
 		title[8192],		/* Title for heading */
 		*titleptr,		/* Pointer into title */
 		*titleend,		/* End of title */
@@ -837,14 +838,17 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
       * See if this is a heading...
       */
 
-      if (strncasecmp(fragment, "<h2 ", 4) && strcasecmp(fragment, "<h2>") && strncasecmp(fragment, "<h3 ", 4) && strcasecmp(fragment, "<h3>"))
+      if (strncasecmp(fragment, "<h1 ", 4) && strcasecmp(fragment, "<h1>") && strncasecmp(fragment, "<h2 ", 4) && strcasecmp(fragment, "<h2>") && strncasecmp(fragment, "<h3 ", 4) && strcasecmp(fragment, "<h3>"))
         continue;
 
      /*
       * Yes, prep and get the title...
       */
 
-      level     = fragment[2] - '1';
+      if (fragment[2] < lowlevel)
+        lowlevel = fragment[2];
+
+      level     = fragment[2] - lowlevel + 1;
       title[0]  = '\0';
       titleptr  = title;
       titleend  = title + sizeof(title) - 1;
