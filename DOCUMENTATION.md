@@ -177,6 +177,7 @@ Annotating HTML
 Headings
 --------
 
+
 Availability
 ------------
 
@@ -188,40 +189,53 @@ Annotating Markdown
 EPUB and HTML Stylesheets
 =========================
 
+Codedoc makes use of a CSS stylesheet for EPUB and HTML output.  The default
+stylesheet should be usable for both display and printing, but you can override
+it using the `--css` option, for example:
+
+    codedoc --epub documentation.epub --css filename.css documentation.xml *.h *.c
+
+> **Note:**
+>
+> Since EPUB uses XHTML (which is case-sensitive), your stylesheet should always
+> use lowercase element names ("pre", not "PRE", etc.)
+
+
 Classes
 -------
 
 The following HTML classes are used to group the sections in the generated
 documentation:
 
-- `body`: The body of the documentation (`<div class="body">`)
-- `constants`
-- `contents`: The table-of-contents for the documentation
-  (`<div class="contents">`)
-- `description`
-- `discussion`
-- `members`
-- `parameters`
-- `returnvalue`
-
-The following HTML classes are used to identify different C/C++ elements:
-
-- `class`
-- `enumeration`
-- `function`
-- `method`
-- `struct`
-- `typedef`
-- `union`
-- `variable`
-
-The following HTML classes are used for inline annotations:
-
-- `code`:
-- `info`: Used to annotate availability information with the `span` element, for
-  example `<span class="info">Since ExampleLib 1.1</span>`.
-- `list`:
-- `title`: Used to annotate 
+| Class        | Description                      | Usage                      |
+| ------------ | -------------------------------- | -------------------------- |
+| body         | The body of the documentation    | `<div class="body">`       |
+| class        | A class                          | `<hN class="class">`       |
+| code         | Wrapped monospace code text      | `<p class="code">`         |
+| constants    | A list of constants              | `<hN class="constants">`   |
+| contents     | The table of contents            | `<div class="contents">`   |
+|              | (first level)                    | `<ul class="contents">`    |
+| description  | Short description                | `<p class="description">`  |
+|              | (in table)                       | `<td class="description">` |
+| discussion   | Additional description           | `<p class="discussion">`   |
+|              | (title)                          | `<hN class="discussion">`  |
+|              | (in table)                       | `<td class="discussion">`  |
+| enumeration  | An enumeration type              | `<hN class="enumeration">` |
+| footer       | The footer of the documentation  | `<div class="footer">`     |
+| function     | A global function                | `<hN class="function">`    |
+| header       | The header of the documentation  | `<div class="header">`     |
+| info         | Availability information         | `<span class="info">`      |
+| list         | A table list                     | `<table class="list">`     |
+| members      | A list of class/struct members   | `<table class="members">`  |
+| method       | A class or structure method      | `<hN class="method">`      |
+| parameters   | A list of function parameters    | `<hN class="parameters">`  |
+| returnvalue  | The return value of a function   | `<hN class="returnvalue">` |
+| struct       | A structure                      | `<hN class="struct">`      |
+| subcontents  | Second-level contents            | `<ul class="subcontents">` |
+| title        | A title                          | `<hN class="title">`       |
+| typedef      | A typedef                        | `<hN class="typedef">`     |
+| union        | A union                          | `<hN class="union">`       |
+| variable     | A global variable                | `<hN class="variable">`    |
 
 
 Default Stylesheet

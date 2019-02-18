@@ -4747,9 +4747,11 @@ write_html(const char  *section,	/* I - Section */
 
   write_html_head(stdout, OUTPUT_HTML, section, title, author, copyright, docversion, cssfile);
 
+  puts("    <div class=\"header\">");
+
   if (coverimage)
   {
-    fputs("<p><img src=\"", stdout);
+    fputs("      <p><img src=\"", stdout);
     write_string(stdout, coverimage, OUTPUT_HTML);
     fputs("\" width=\"100%\"></p>\n", stdout);
   }
@@ -4772,24 +4774,26 @@ write_html(const char  *section,	/* I - Section */
     * Use standard header...
     */
 
-    fputs("    <h1 class=\"title\">", stdout);
+    fputs("      <h1 class=\"title\">", stdout);
     write_string(stdout, title, OUTPUT_HTML);
     fputs("</h1>\n", stdout);
 
     if (author)
     {
-      fputs("    <p>", stdout);
+      fputs("      <p>", stdout);
       write_string(stdout, author, OUTPUT_HTML);
       fputs("</p>\n", stdout);
     }
 
     if (copyright)
     {
-      fputs("    <p>", stdout);
+      fputs("      <p>", stdout);
       write_string(stdout, copyright, OUTPUT_HTML);
       fputs("</p>\n", stdout);
     }
   }
+
+  puts("    </div>");
 
  /*
   * Table of contents...
@@ -4816,6 +4820,9 @@ write_html(const char  *section,	/* I - Section */
    /*
     * Use custom footer...
     */
+
+    puts("    </div>");
+    puts("    <div class=\"header\">");
 
     write_file(stdout, footerfile, OUTPUT_HTML);
   }
