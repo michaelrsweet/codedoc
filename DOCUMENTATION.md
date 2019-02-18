@@ -2,16 +2,15 @@
 title: How to Use the codedoc Utility
 author: Michael R Sweet
 copyright: Copyright © 2003-2019 by Michael R Sweet
-version: 3.0
+version: 3.1
 ...
 
 Introduction
 ============
 
-Codedoc is a general-purpose utility which scans C and C++ source
-files to produce an XML file representing the functions, types, and definitions
-in those source files, as well as EPUB, HTML, and man page documentation that
-can be read by humans.  Unlike popular documentation generators like Doxygen or
+Codedoc is a general-purpose utility which scans HTML, markdown, C, and C++
+source files to produce EPUB, HTML, and man page documentation that can be read
+by humans.  Unlike popular C/C++ documentation generators like Doxygen or
 Javadoc, Codedoc uses in-line comments rather than comment headers, allowing for
 more "natural" code documentation.  Additional markdown documentation content
 can be included to make the generated documentation even more useful and
@@ -27,7 +26,8 @@ History
 
 Codedoc was originally part of the [Mini-XML](https://www.msweet.org/mxml)
 project (as "codedoc") and was developed specifically to generate the API
-documentation for Mini-XML and [CUPS](https://www.cups.org).
+documentation for Mini-XML and [CUPS](https://www.cups.org).  It is now much
+more general purpose.
 
 
 Running Codedoc
@@ -99,8 +99,8 @@ generated documentation:
 - `--title "title text'`; Sets the title text
 
 
-Annotating Your Code
-====================
+Annotating Your C/C++ Code
+==========================
 
 Codedoc looks for in-line comments to describe the functions, types, and
 constants in your code.  Codedoc documents all public names it finds in your
@@ -169,3 +169,223 @@ directive strings:
 - `@since ...@`: flags the item as new since a particular release. The text
   following the `@since` up to the closing `@` is highlighted in the generated
   documentation, e.g. `@since libexample 1.1@`.
+
+
+Annotating HTML
+===============
+
+Headings
+--------
+
+Availability
+------------
+
+
+Annotating Markdown
+===================
+
+
+EPUB and HTML Stylesheets
+=========================
+
+Classes
+-------
+
+The following HTML classes are used to group the sections in the generated
+documentation:
+
+- `body`: The body of the documentation (`<div class="body">`)
+- `constants`
+- `contents`: The table-of-contents for the documentation
+  (`<div class="contents">`)
+- `description`
+- `discussion`
+- `members`
+- `parameters`
+- `returnvalue`
+
+The following HTML classes are used to identify different C/C++ elements:
+
+- `class`
+- `enumeration`
+- `function`
+- `method`
+- `struct`
+- `typedef`
+- `union`
+- `variable`
+
+The following HTML classes are used for inline annotations:
+
+- `code`:
+- `info`: Used to annotate availability information with the `span` element, for
+  example `<span class="info">Since ExampleLib 1.1</span>`.
+- `list`:
+- `title`: Used to annotate 
+
+
+Default Stylesheet
+------------------
+
+```
+body, p, h1, h2, h3, h4 {
+  font-family: sans-serif;
+}
+div.body h1 {
+  font-size: 250%;
+  font-weight: bold;
+  margin: 0;
+}
+div.body h2 {
+  font-size: 250%;
+  margin-top: 1.5em;
+}
+div.body h3 {
+  font-size: 150%;
+  margin-bottom: 0.5em;
+  margin-top: 1.5em;
+}
+div.body h4 {
+  font-size: 110%;
+  margin-bottom: 0.5em;
+  margin-top: 1.5em;
+}
+div.body h5 {
+  font-size: 100%;
+  margin-bottom: 0.5em;
+  margin-top: 1.5em;
+}
+div.contents {
+  background: #e8e8e8;
+  border: solid thin black;
+  padding: 10px;
+}
+div.contents h1 {
+  font-size: 110%;
+}
+div.contents h2 {
+  font-size: 100%;
+}
+div.contents ul.contents {
+  font-size: 80%;
+}
+.class {
+  border-bottom: solid 2px gray;
+}
+.constants {
+}
+.description {
+  margin-top: 0.5em;
+}
+.discussion {
+}
+.enumeration {
+  border-bottom: solid 2px gray;
+}
+.function {
+  border-bottom: solid 2px gray;
+  margin-bottom: 0;
+}
+.members {
+}
+.method {
+}
+.parameters {
+}
+.returnvalue {
+}
+.struct {
+  border-bottom: solid 2px gray;
+}
+.typedef {
+  border-bottom: solid 2px gray;
+}
+.union {
+  border-bottom: solid 2px gray;
+}
+.variable {
+}
+h1, h2, h3, h4, h5, h6 {
+  page-break-inside: avoid;
+}
+blockquote {
+  border: solid thin gray;
+  box-shadow: 3px 3px 5px rgba(0,0,0,0.5);
+  padding: 0px 10px;
+  page-break-inside: avoid;
+}
+p code, li code, p.code, pre, ul.code li {
+  background: rgba(127,127,127,0.1);
+  border: thin dotted gray;
+  font-family: monospace;
+  font-size: 90%;
+  hyphens: manual;
+  -webkit-hyphens: manual;
+  page-break-inside: avoid;
+}
+p.code, pre, ul.code li {
+  padding: 10px;
+}
+p code, li code {
+  padding: 2px 5px;
+}
+a:link, a:visited {
+  text-decoration: none;
+}
+span.info {
+  background: black;
+  border: solid thin black;
+  color: white;
+  font-size: 80%;
+  font-style: italic;
+  font-weight: bold;
+  white-space: nowrap;
+}
+h3 span.info, h4 span.info {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  float: right;
+  padding: 3px 6px;
+}
+ul.code, ul.contents, ul.subcontents {
+  list-style-type: none;
+  margin: 0;
+  padding-left: 0;
+}
+ul.code li {
+  margin: 0;
+}
+ul.contents > li {
+  margin-top: 1em;
+}
+ul.contents li ul.code, ul.contents li ul.subcontents {
+  padding-left: 2em;
+}
+table.list {
+  border-collapse: collapse;
+  width: 100%;
+}
+table.list tr:nth-child(even) {
+  background: rgba(127,127,127,0.1);]n"
+}
+table.list th {
+  border-right: 2px solid gray;
+  font-family: monospace;
+  padding: 5px 10px 5px 2px;
+  text-align: right;
+  vertical-align: top;
+}
+table.list td {
+  padding: 5px 2px 5px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+h1.title {
+}
+h2.title {
+  border-bottom: solid 2px black;
+}
+h3.title {
+  border-bottom: solid 2px black;
+}
+```

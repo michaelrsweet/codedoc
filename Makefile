@@ -46,7 +46,7 @@ install:	$(TARGETS)
 TESTOPTIONS	=	\
 			--author "Michael R Sweet" \
 			--body README.md \
-			--copyright "Copyright © 2003-2018 by Michael R Sweet" \
+			--copyright "Copyright © 2003-2019 by Michael R Sweet" \
 			--coverimage codedoc-256.png \
 			--docversion $(VERSION) \
 			--title "Test Documentation"
