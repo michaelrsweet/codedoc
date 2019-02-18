@@ -17,8 +17,8 @@ Changes in v3.1
 ---------------
 
 - Fixed compile problems with Mini-XML v3.0.
-- Added support for `id` attributes in HTML headers when generating the table
-  of contents.
+- Greatly improved scanning of HTML content when generating the table of
+  contents.
 - Updated the markdown support with external links, additional inline markup,
   and hard line breaks.
 

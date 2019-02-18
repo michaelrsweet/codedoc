@@ -141,6 +141,8 @@ static int		filebuf_open(filebuf_t *file, const char *filename);
 static void		filebuf_ungetc(filebuf_t *file, int ch);
 static mxml_node_t	*find_public(mxml_node_t *node, mxml_node_t *top, const char *element, const char *name, int mode);
 static void		free_toc(toc_t *toc);
+static char		*html_gets(FILE *fp, char *fragment, size_t fragsize);
+static void		html_unescape(char *s);
 static char		*get_comment_info(mxml_node_t *description);
 static char		*get_iso_date(time_t t);
 static mxml_node_t	*get_nth_child(mxml_node_t *node, int idx);
@@ -819,127 +821,100 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
   }
   else if (bodyfile && (fp = fopen(bodyfile, "r")) != NULL)
   {
-    char	line[8192],		/* Line from file */
-		*ptr,			/* Pointer in line */
-		*end,			/* End of line */
-		*anchor,		/* Anchor name */
-                *title,			/* Title */
-		quote;			/* Quote character for value */
+    char	fragment[8192],		/* Fragment from file */
+		endfrag[6],		/* End fragment */
+		title[8192],		/* Title for heading */
+		*titleptr,		/* Pointer into title */
+		*titleend,		/* End of title */
+		anchor[256];		/* Anchor for heading */
     int		level;			/* New heading level */
+    size_t	fraglen;		/* Length of fragment */
 
 
-    while (fgets(line, sizeof(line), fp))
+    while (html_gets(fp, fragment, sizeof(fragment)))
     {
      /*
-      * See if this line has a heading...
+      * See if this is a heading...
       */
 
-      if ((ptr = strstr(line, "<h")) == NULL &&
-          (ptr = strstr(line, "<H")) == NULL)
-	continue;
-
-      if (ptr[2] != '2' && ptr[2] != '3')
+      if (strncasecmp(fragment, "<h2 ", 4) && strcasecmp(fragment, "<h2>") && strncasecmp(fragment, "<h3 ", 4) && strcasecmp(fragment, "<h3>"))
         continue;
 
-      level = ptr[2] - '1';
-
-      if ((anchor = strstr(ptr, " id=")) == NULL)
-        anchor = strstr(ptr, " ID=");
-      if (anchor)
-        anchor += 4;
-
      /*
-      * Make sure we have the whole heading...
+      * Yes, prep and get the title...
       */
 
-      while (!strstr(line, "</h") && !strstr(line, "</H"))
-      {
-        end = line + strlen(line);
+      level     = fragment[2] - '1';
+      title[0]  = '\0';
+      titleptr  = title;
+      titleend  = title + sizeof(title) - 1;
+      *titleend = '\0';
 
-	if (end == (line + sizeof(line) - 1) ||
-	    !fgets(end, (int)(sizeof(line) - (end - line)), fp))
-	  break;
+      snprintf(endfrag, sizeof(endfrag), "</h%d>", level + 1);
+
+      zipcXMLGetAttribute(fragment, "id", anchor, sizeof(anchor));
+
+      while (html_gets(fp, fragment, sizeof(fragment)))
+      {
+        if (!strcasecmp(fragment, endfrag))
+        {
+         /*
+          * End of heading...
+          */
+          break;
+        }
+        else if (!strncasecmp(fragment, "<a ", 3) && !anchor[0])
+        {
+         /*
+          * Possible <a name="foo">...
+          */
+
+          if (!zipcXMLGetAttribute(fragment, "id", anchor, sizeof(anchor)))
+            zipcXMLGetAttribute(fragment, "name", anchor, sizeof(anchor));
+        }
+        else if (!strncasecmp(fragment, "<span ", 6))
+        {
+          char	temp[256];		/* Temporary string */
+
+          if (zipcXMLGetAttribute(fragment, "class", temp, sizeof(temp)) && !strcasecmp(temp, "info"))
+          {
+           /*
+            * Skip informational annotation...
+            */
+
+	    while (html_gets(fp, fragment, sizeof(fragment)))
+	      if (!strcasecmp(fragment, "</span>"))
+	        break;
+          }
+        }
+        else if (fragment[0] != '<')
+        {
+          if ((fraglen = strlen(fragment)) > (titleend - titleptr))
+            fraglen = titleend - titleptr;
+
+          strncpy(titleptr, fragment, fraglen);
+          titleptr += fraglen;
+          *titleptr = '\0';
+        }
       }
 
      /*
-      * Convert newlines and tabs to spaces...
+      * Convert newlines and tabs to spaces, then unescape HTML entities...
       */
 
-      for (ptr = line; *ptr; ptr ++)
-        if (isspace(*ptr & 255))
-	  *ptr = ' ';
+      for (titleptr = title; *titleptr; titleptr ++)
+        if (isspace(*titleptr & 255))
+	  *titleptr = ' ';
+
+      html_unescape(title);
 
      /*
-      * Find the anchor and text...
+      * If both the title and anchor are not empty, add the table-of-contents
+      * entry...
       */
 
-      if (!anchor)
-      {
-	for (anchor = strchr(line, '<'); anchor; anchor = strchr(anchor + 1, '<'))
-	{
-	  if (!strncmp(anchor, "<A NAME=", 8) || !strncmp(anchor, "<a name=", 8))
-	  {
-	    anchor += 8;
-	    break;
-	  }
-	  else if (!strncmp(anchor, "<A ID=", 6) || !strncmp(anchor, "<a id=", 6))
-	  {
-	    anchor += 6;
-	    break;
-	  }
-	}
-      }
-
-      if (!anchor)
-        continue;
-
-      if (*anchor == '\'' || *anchor == '\"')
-      {
-       /*
-        * Quoted anchor...
-	*/
-
-        quote = *anchor++;
-	ptr   = anchor;
-
-	while (*ptr && *ptr != quote)
-	  ptr ++;
-
-        if (!*ptr)
-	  continue;
-
-        while (*ptr && *ptr != '>')
-          *ptr++ = '\0';
-
-        if (*ptr)
-          *ptr++ = '\0';
-      }
-      else
-      {
-       /*
-        * Non-quoted anchor...
-	*/
-
-	ptr = anchor;
-
-	while (*ptr && *ptr != '>' && !isspace(*ptr & 255))
-	  ptr ++;
-
-        if (!*ptr)
-	  continue;
-
-        while (*ptr && *ptr != '>')
-          *ptr++ = '\0';
-
-        if (*ptr)
-          *ptr++ = '\0';
-      }
-
-      title = ptr;
-      if ((ptr = strchr(title, '<')) != NULL)
-        *ptr = '\0';
-
-      add_toc(toc, level, anchor, title);
+      if (anchor[0] && title[0])
+        add_toc(toc, level, anchor, title);
     }
 
     fclose(fp);
@@ -1422,6 +1397,234 @@ free_toc(toc_t *toc)			/* I - Table of contents */
 {
   free(toc->entries);
   free(toc);
+}
+
+
+/*
+ * 'html_gets()' - Get a HTML fragment.
+ *
+ * Returns a HTML fragment like "<element attr='value'>", "some text", and
+ * "</element>".
+ */
+
+static char *				/* O - Attribute or `NULL` */
+html_gets(FILE	 *fp,			/* I - File to read from */
+	  char	 *fragment,		/* I - Fragment string buffer */
+	  size_t fragsize)		/* I - Size of buffer */
+{
+  char	ch,				/* Current character */
+	*fragptr,			/* Pointer into buffer */
+	*fragend;			/* Pointer to end of buffer */
+
+
+ /*
+  * Read the fragment...
+  */
+
+  fragptr = fragment;
+  fragend = fragment + fragsize - 1;
+
+  if ((ch = getc(fp)) == EOF)
+  {
+    *fragment = '\0';
+    return (NULL);
+  }
+
+  *fragptr++ = ch;
+
+  if (ch == '<')
+  {
+   /*
+    * Read element or comment...
+    */
+
+    while ((ch = getc(fp)) != EOF)
+    {
+      if (fragptr < fragend)
+	*fragptr++ = ch;
+
+      if (ch == '>')
+      {
+       /*
+        * End of element/comment/processing directive...
+        */
+
+	break;
+      }
+      else if (ch == '\"' || ch == '\'')
+      {
+       /*
+	* Read quoted string...
+	*/
+
+	char quote = ch;
+
+	while ((ch = getc(fp)) != EOF)
+	{
+	  if (fragptr < fragend)
+	    *fragptr++ = ch;
+
+	  if (ch == quote)
+	    break;
+	}
+      }
+    }
+
+    *fragptr++ = '\0';
+  }
+  else
+  {
+   /*
+    * Read text...
+    */
+
+    while ((ch = getc(fp)) != EOF)
+    {
+      if (ch == '<')
+      {
+	ungetc(ch, fp);
+	break;
+      }
+      else if (fragptr < fragend)
+	*fragptr++ = ch;
+    }
+
+    *fragptr++ = '\0';
+
+    html_unescape(fragment);
+  }
+
+  return (fragment);
+}
+
+
+/*
+ * 'html_unescape()' - Replace &foo; with corresponding characters.
+ */
+
+static void
+html_unescape(char *buffer)		/* I - Buffer */
+{
+  char	*inptr,				/* Current input pointer */
+	*outptr;			/* Current output pointer */
+
+
+ /*
+  * See if there are any escaped characters to work with...
+  */
+
+  if ((inptr = strchr(buffer, '&')) == NULL)
+    return;				/* Nope */
+
+  for (outptr = inptr; *inptr;)
+  {
+    if (*inptr == '&' && strchr(inptr + 1, ';'))
+    {
+     /*
+      * Figure out what kind of escaped character we have...
+      */
+
+      inptr ++;
+      if (!strncmp(inptr, "amp;", 4))
+      {
+	inptr += 4;
+	*outptr++ = '&';
+      }
+      else if (!strncmp(inptr, "lt;", 3))
+      {
+	inptr += 3;
+	*outptr++ = '<';
+      }
+      else if (!strncmp(inptr, "gt;", 3))
+      {
+	inptr += 3;
+	*outptr++ = '>';
+      }
+      else if (!strncmp(inptr, "quot;", 5))
+      {
+	inptr += 5;
+	*outptr++ = '\"';
+      }
+      else if (!strncmp(inptr, "apos;", 5))
+      {
+	inptr += 5;
+	*outptr++ = '\'';
+      }
+      else if (*inptr == '#')
+      {
+       /*
+	* Numeric, copy character over as UTF-8...
+	*/
+
+	int ch;				/* Numeric character value */
+
+	inptr ++;
+	if (*inptr == 'x')
+	  ch = (int)strtol(inptr, NULL, 16);
+	else
+	  ch = (int)strtol(inptr, NULL, 10);
+
+	if (ch < 0x80)
+	{
+	 /*
+	  * US ASCII
+	  */
+
+	  *outptr++ = ch;
+	}
+	else if (ch < 0x800)
+	{
+	 /*
+	  * Two-byte UTF-8
+	  */
+
+	  *outptr++ = 0xc0 | (ch >> 6);
+	  *outptr++ = 0x80 | (ch & 0x3f);
+	}
+	else if (ch < 0x10000)
+	{
+	 /*
+	  * Three-byte UTF-8
+	  */
+
+	  *outptr++ = 0xe0 | (ch >> 12);
+	  *outptr++ = 0x80 | ((ch >> 6) & 0x3f);
+	  *outptr++ = 0x80 | (ch & 0x3f);
+	}
+	else
+	{
+	 /*
+	  * Four-byte UTF-8
+	  */
+
+	  *outptr++ = 0xf0 | (ch >> 18);
+	  *outptr++ = 0x80 | ((ch >> 12) & 0x3f);
+	  *outptr++ = 0x80 | ((ch >> 6) & 0x3f);
+	  *outptr++ = 0x80 | (ch & 0x3f);
+	}
+
+	inptr = strchr(inptr, ';') + 1;
+      }
+      else
+      {
+       /*
+	* Something else not supported by XML...
+	*/
+
+	*outptr++ = '&';
+      }
+    }
+    else
+    {
+     /*
+      * Copy literal...
+      */
+
+      *outptr++ = *inptr++;
+    }
+  }
+
+  *outptr = '\0';
 }
 
 
