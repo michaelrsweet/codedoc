@@ -843,6 +843,11 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
 
       level = ptr[2] - '1';
 
+      if ((anchor = strstr(ptr, " id=")) == NULL)
+        anchor = strstr(ptr, " ID=");
+      if (anchor)
+        anchor += 4;
+
      /*
       * Make sure we have the whole heading...
       */
@@ -868,31 +873,34 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
       * Find the anchor and text...
       */
 
-      for (ptr = strchr(line, '<'); ptr; ptr = strchr(ptr + 1, '<'))
+      if (!anchor)
       {
-        if (!strncmp(ptr, "<A NAME=", 8) || !strncmp(ptr, "<a name=", 8))
-        {
-          ptr += 8;
-	  break;
-        }
-        else if (!strncmp(ptr, "<A ID=", 6) || !strncmp(ptr, "<a id=", 6))
-        {
-          ptr += 6;
-	  break;
-        }
+	for (anchor = strchr(line, '<'); anchor; anchor = strchr(anchor + 1, '<'))
+	{
+	  if (!strncmp(anchor, "<A NAME=", 8) || !strncmp(anchor, "<a name=", 8))
+	  {
+	    anchor += 8;
+	    break;
+	  }
+	  else if (!strncmp(anchor, "<A ID=", 6) || !strncmp(anchor, "<a id=", 6))
+	  {
+	    anchor += 6;
+	    break;
+	  }
+	}
       }
 
-      if (!ptr)
+      if (!anchor)
         continue;
 
-      if (*ptr == '\'' || *ptr == '\"')
+      if (*anchor == '\'' || *anchor == '\"')
       {
        /*
         * Quoted anchor...
 	*/
 
-        quote  = *ptr++;
-	anchor = ptr;
+        quote = *anchor++;
+	ptr   = anchor;
 
 	while (*ptr && *ptr != quote)
 	  ptr ++;
@@ -912,7 +920,7 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
         * Non-quoted anchor...
 	*/
 
-        anchor = ptr;
+	ptr = anchor;
 
 	while (*ptr && *ptr != '>' && !isspace(*ptr & 255))
 	  ptr ++;
@@ -928,9 +936,7 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
       }
 
       title = ptr;
-      if ((ptr = strstr(title, "</A>")) != NULL)
-        *ptr = '\0';
-      else if ((ptr = strstr(title, "</a>")) != NULL)
+      if ((ptr = strchr(title, '<')) != NULL)
         *ptr = '\0';
 
       add_toc(toc, level, anchor, title);
