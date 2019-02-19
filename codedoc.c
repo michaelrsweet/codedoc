@@ -62,6 +62,26 @@
 
 
 /*
+ * Special symbols...
+ */
+
+#define COPYRIGHT_ASCII		"(c)"
+#define COPYRIGHT_ASCII_LEN	3
+#define COPYRIGHT_UTF8		"\xC2\xA9"
+#define COPYRIGHT_UTF8_LEN	2
+
+#define REGISTERED_ASCII	"(r)"
+#define REGISTERED_ASCII_LEN	3
+#define REGISTERED_UTF8		"\xC2\xAE"
+#define REGISTERED_UTF8_LEN	2
+
+#define TRADEMARK_ASCII		"(tm)"
+#define TRADEMARK_ASCII_LEN	4
+#define TRADEMARK_UTF8		"\xE2\x84\xA2"
+#define TRADEMARK_UTF8_LEN	3
+
+
+/*
  * Local types...
  */
 
@@ -2222,14 +2242,7 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
     if (element)
       fprintf(out, "<%s>", element);
 
-    if (!strcmp(text, "(c)"))
-      fputs("&#160;", out);
-    else if (!strcmp(text, "(r)"))
-      fputs("&#174;", out);
-    else if (!strcmp(text, "(tm)"))
-      fputs("&#8482;", out);
-    else
-      write_string(out, text, mode);
+    write_string(out, text, mode);
 
     if (element)
       fprintf(out, "</%s>", element);
@@ -6235,6 +6248,9 @@ write_string(FILE       *out,		/* I - Output file */
              const char *s,		/* I - String to write */
              int        mode)		/* I - Output mode */
 {
+  const char	*start = s;		/* Start of string */
+
+
   if (!s)
     return;
 
@@ -6253,26 +6269,45 @@ write_string(FILE       *out,		/* I - Output file */
             fputs("&gt;", out);
           else if (*s == '\"')
             fputs("&quot;", out);
+          else if (!strncasecmp(s, COPYRIGHT_ASCII, COPYRIGHT_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[COPYRIGHT_ASCII_LEN] || isspace(s[COPYRIGHT_ASCII_LEN] & 255)))
+          {
+            fputs("&#169;", out);
+            s += COPYRIGHT_ASCII_LEN - 1;
+          }
+          else if (!strncasecmp(s, REGISTERED_ASCII, REGISTERED_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[REGISTERED_ASCII_LEN] || isspace(s[REGISTERED_ASCII_LEN] & 255)))
+          {
+            fputs("&#174;", out);
+            s += REGISTERED_ASCII_LEN - 1;
+          }
+          else if (!strncasecmp(s, TRADEMARK_ASCII, TRADEMARK_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[TRADEMARK_ASCII_LEN] || isspace(s[TRADEMARK_ASCII_LEN] & 255)))
+          {
+	    fputs("&#8482;", out);
+            s += TRADEMARK_ASCII_LEN - 1;
+          }
           else if (*s & 128)
           {
            /*
-            * Convert utf-8 to Unicode constant...
+            * Convert UTF-8 to Unicode constant...
             */
 
             int	ch;			/* Unicode character */
 
-
             ch = *s & 255;
 
-            if ((ch & 0xe0) == 0xc0)
+            if ((ch & 0xe0) == 0xc0 && (s[1] & 0xc0) == 0x80)
             {
               ch = ((ch & 0x1f) << 6) | (s[1] & 0x3f);
 	      s ++;
             }
-            else if ((ch & 0xf0) == 0xe0)
+            else if ((ch & 0xf0) == 0xe0 && (s[1] & 0xc0) == 0x80 && (s[2] & 0xc0) == 0x80)
             {
               ch = ((((ch * 0x0f) << 6) | (s[1] & 0x3f)) << 6) | (s[2] & 0x3f);
 	      s += 2;
+            }
+            else if ((ch & 0xf8) == 0xf0 && (s[1] & 0xc0) == 0x80 && (s[2] & 0xc0) == 0x80 && (s[3] & 0xc0) == 0x80)
+            {
+              ch = ((((((ch * 0x0f) << 6) | (s[1] & 0x3f)) << 6) | (s[2] & 0x3f)) << 6) | (s[3] & 0x3f);
+	      s += 3;
             }
 
             if (ch == 0xa0 && mode != OUTPUT_EPUB)
@@ -6296,10 +6331,43 @@ write_string(FILE       *out,		/* I - Output file */
     case OUTPUT_MAN :
         while (*s)
         {
-          if (*s == '\\' || *s == '-')
-            putc('\\', out);
+          if (!strncasecmp(s, COPYRIGHT_ASCII, COPYRIGHT_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[COPYRIGHT_ASCII_LEN] || isspace(s[COPYRIGHT_ASCII_LEN] & 255)))
+          {
+            fputs("\\[co]", out);
+            s += COPYRIGHT_ASCII_LEN;
+          }
+          else if (!strncmp(s, COPYRIGHT_UTF8, COPYRIGHT_UTF8_LEN))
+          {
+            fputs("\\[co]", out);
+            s += COPYRIGHT_UTF8_LEN;
+          }
+          else if (!strncasecmp(s, REGISTERED_ASCII, REGISTERED_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[REGISTERED_ASCII_LEN] || isspace(s[REGISTERED_ASCII_LEN] & 255)))
+          {
+            fputs("\\*R", out);
+            s += REGISTERED_ASCII_LEN;
+          }
+          else if (!strncmp(s, REGISTERED_UTF8, REGISTERED_UTF8_LEN))
+          {
+            fputs("\\*R", out);
+            s += REGISTERED_UTF8_LEN;
+          }
+          else if (!strncasecmp(s, TRADEMARK_ASCII, TRADEMARK_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[TRADEMARK_ASCII_LEN] || isspace(s[TRADEMARK_ASCII_LEN] & 255)))
+          {
+	    fputs("\\*(Tm", out);
+            s += TRADEMARK_ASCII_LEN;
+          }
+          else if (!strncmp(s, TRADEMARK_UTF8, TRADEMARK_UTF8_LEN))
+          {
+            fputs("\\*(Tm", out);
+            s += TRADEMARK_UTF8_LEN;
+          }
+          else
+          {
+	    if (*s == '\\' || *s == '-')
+	      putc('\\', out);
 
-          putc(*s++, out);
+	    putc(*s++, out);
+	  }
         }
         break;
   }

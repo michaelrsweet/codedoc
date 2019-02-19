@@ -21,6 +21,9 @@ Changes in v3.1
   contents.
 - Updated the markdown support with external links, additional inline markup,
   and hard line breaks.
+- Copyright, trademark, and registered trademark symbols are now correctly
+  mapped from their ASCII and UTF-8 representations to the output format's
+  preferred encoding (Issue #1)
 - Greatly expanded the documentation.
 
 
