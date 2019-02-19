@@ -24,7 +24,7 @@ Changes in v3.1
 - Copyright, trademark, and registered trademark symbols are now correctly
   mapped from their ASCII and UTF-8 representations to the output format's
   preferred encoding (Issue #1)
-- Greatly expanded the documentation.
+- Added documentation on EPUB and HTML stylesheets.
 
 
 Changes in v3.0
