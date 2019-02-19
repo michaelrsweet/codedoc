@@ -1,5 +1,6 @@
 *.o
 codedoc
+codedoc.html
 test.epub
 test.html
 test.man
