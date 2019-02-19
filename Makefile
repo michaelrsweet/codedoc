@@ -45,11 +45,12 @@ install:	$(TARGETS)
 
 TESTOPTIONS	=	\
 			--author "Michael R Sweet" \
-			--body README.md \
+			--body DOCUMENTATION.md \
 			--copyright "Copyright © 2003-2019 by Michael R Sweet" \
 			--coverimage codedoc-256.png \
 			--docversion $(VERSION) \
-			--title "Test Documentation"
+			--title "Test Documentation" \
+			--footer README.md
 
 test:		codedoc
 	./codedoc $(TESTOPTIONS) test.xml testfiles/*.cxx >test.html

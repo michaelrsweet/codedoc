@@ -132,9 +132,10 @@ static size_t codedoc_strlcpy(char *dst, const char *src, size_t dstsize)
  * Local functions...
  */
 
+static void		add_file_toc(toc_t *toc, const char *filename, mmd_t *file);
 static void		add_toc(toc_t *toc, int level, const char *anchor, const char *title);
 static mxml_node_t	*add_variable(mxml_node_t *parent, const char *name, mxml_node_t *type);
-static toc_t		*build_toc(mxml_node_t *doc, const char *bodyfile, mmd_t *body, int mode);
+static toc_t		*build_toc(mxml_node_t *doc, const char *bodyfile, mmd_t *body, const char *footerfile, int mode);
 static void		clear_whitespace(mxml_node_t *node);
 static int		filebuf_getc(filebuf_t *file);
 static int		filebuf_open(filebuf_t *file, const char *filename);
@@ -584,6 +585,165 @@ main(int  argc,				/* I - Number of command-line args */
 
 
 /*
+ * 'add_file_toc()' - Add TOC entries from a file.
+ */
+
+static void
+add_file_toc(toc_t      *toc,		/* I - Table-of-contents */
+             const char *filename,	/* I - Filename */
+             mmd_t      *file)		/* I - Markdown document */
+{
+  FILE		*fp;			/* File pointer */
+
+
+  if (file)
+  {
+    mmd_t	*node,			/* Current node */
+		*tnode,			/* Title node */
+		*next;			/* Next node */
+    mmd_type_t	type;			/* Node type */
+    char	title[1024],		/* Heading title */
+		*ptr;			/* Pointer into title */
+
+    for (node = mmdGetFirstChild(file); node; node = next)
+    {
+      type = mmdGetType(node);
+
+      if (type == MMD_TYPE_HEADING_1 || type == MMD_TYPE_HEADING_2)
+      {
+        title[sizeof(title) - 1] = '\0';
+
+        for (tnode = mmdGetFirstChild(node), ptr = title; tnode; tnode = mmdGetNextSibling(tnode))
+        {
+          if (mmdGetWhitespace(tnode) && ptr < (title + sizeof(title) - 1))
+            *ptr++ = ' ';
+
+          strncpy(ptr, mmdGetText(tnode), sizeof(title) - (ptr - title) - 1);
+          ptr += strlen(ptr);
+        }
+
+        add_toc(toc, type - MMD_TYPE_HEADING_1 + 1, markdown_anchor(title), title);
+      }
+
+      if ((next = mmdGetNextSibling(node)) == NULL)
+      {
+        next = mmdGetParent(node);
+
+        while (next && mmdGetNextSibling(next) == NULL)
+          next = mmdGetParent(next);
+
+        next = mmdGetNextSibling(next);
+      }
+    }
+  }
+  else if (filename && (fp = fopen(filename, "r")) != NULL)
+  {
+    char	fragment[8192],		/* Fragment from file */
+		endfrag[6],		/* End fragment */
+		lowlevel = '6',		/* Lowest heading level seen */
+		title[8192],		/* Title for heading */
+		*titleptr,		/* Pointer into title */
+		*titleend,		/* End of title */
+		anchor[256];		/* Anchor for heading */
+    int		level;			/* New heading level */
+    size_t	fraglen;		/* Length of fragment */
+
+
+    while (html_gets(fp, fragment, sizeof(fragment)))
+    {
+     /*
+      * See if this is a heading...
+      */
+
+      if (strncasecmp(fragment, "<h1 ", 4) && strcasecmp(fragment, "<h1>") && strncasecmp(fragment, "<h2 ", 4) && strcasecmp(fragment, "<h2>") && strncasecmp(fragment, "<h3 ", 4) && strcasecmp(fragment, "<h3>"))
+        continue;
+
+     /*
+      * Yes, prep and get the title...
+      */
+
+      if (fragment[2] < lowlevel)
+        lowlevel = fragment[2];
+
+      level     = fragment[2] - lowlevel + 1;
+      title[0]  = '\0';
+      titleptr  = title;
+      titleend  = title + sizeof(title) - 1;
+      *titleend = '\0';
+
+      snprintf(endfrag, sizeof(endfrag), "</h%d>", level + 1);
+
+      zipcXMLGetAttribute(fragment, "id", anchor, sizeof(anchor));
+
+      while (html_gets(fp, fragment, sizeof(fragment)))
+      {
+        if (!strcasecmp(fragment, endfrag))
+        {
+         /*
+          * End of heading...
+          */
+          break;
+        }
+        else if (!strncasecmp(fragment, "<a ", 3) && !anchor[0])
+        {
+         /*
+          * Possible <a name="foo">...
+          */
+
+          if (!zipcXMLGetAttribute(fragment, "id", anchor, sizeof(anchor)))
+            zipcXMLGetAttribute(fragment, "name", anchor, sizeof(anchor));
+        }
+        else if (!strncasecmp(fragment, "<span ", 6))
+        {
+          char	temp[256];		/* Temporary string */
+
+          if (zipcXMLGetAttribute(fragment, "class", temp, sizeof(temp)) && !strcasecmp(temp, "info"))
+          {
+           /*
+            * Skip informational annotation...
+            */
+
+	    while (html_gets(fp, fragment, sizeof(fragment)))
+	      if (!strcasecmp(fragment, "</span>"))
+	        break;
+          }
+        }
+        else if (fragment[0] != '<')
+        {
+          if ((fraglen = strlen(fragment)) > (titleend - titleptr))
+            fraglen = titleend - titleptr;
+
+          strncpy(titleptr, fragment, fraglen);
+          titleptr += fraglen;
+          *titleptr = '\0';
+        }
+      }
+
+     /*
+      * Convert newlines and tabs to spaces, then unescape HTML entities...
+      */
+
+      for (titleptr = title; *titleptr; titleptr ++)
+        if (isspace(*titleptr & 255))
+	  *titleptr = ' ';
+
+      html_unescape(title);
+
+     /*
+      * If both the title and anchor are not empty, add the table-of-contents
+      * entry...
+      */
+
+      if (anchor[0] && title[0])
+        add_toc(toc, level, anchor, title);
+    }
+
+    fclose(fp);
+  }
+}
+
+
+/*
  * 'add_toc()' - Add a TOC entry.
  */
 
@@ -758,10 +918,10 @@ static toc_t *				/* O - Table of contents */
 build_toc(mxml_node_t *doc,		/* I - Documentation */
           const char  *bodyfile,	/* I - Body file */
           mmd_t       *body,		/* I - Markdown body */
+          const char  *footerfile,	/* I - Footer file */
           int         mode)             /* I - Output mode */
 {
   toc_t		*toc;			/* Array of headings */
-  FILE		*fp;			/* Body file */
   mxml_node_t	*function,		/* Current function */
 		*scut,			/* Struct/class/union/typedef */
 		*arg;			/* Current argument */
@@ -779,150 +939,7 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
   * Scan the body file for headings...
   */
 
-  if (body)
-  {
-    mmd_t	*node,			/* Current node */
-		*tnode,			/* Title node */
-		*next;			/* Next node */
-    mmd_type_t	type;			/* Node type */
-    char	title[1024],		/* Heading title */
-		*ptr;			/* Pointer into title */
-
-    for (node = mmdGetFirstChild(body); node; node = next)
-    {
-      type = mmdGetType(node);
-
-      if (type == MMD_TYPE_HEADING_1 || type == MMD_TYPE_HEADING_2)
-      {
-        title[sizeof(title) - 1] = '\0';
-
-        for (tnode = mmdGetFirstChild(node), ptr = title; tnode; tnode = mmdGetNextSibling(tnode))
-        {
-          if (mmdGetWhitespace(tnode) && ptr < (title + sizeof(title) - 1))
-            *ptr++ = ' ';
-
-          strncpy(ptr, mmdGetText(tnode), sizeof(title) - (ptr - title) - 1);
-          ptr += strlen(ptr);
-        }
-
-        add_toc(toc, type - MMD_TYPE_HEADING_1 + 1, markdown_anchor(title), title);
-      }
-
-      if ((next = mmdGetNextSibling(node)) == NULL)
-      {
-        next = mmdGetParent(node);
-
-        while (next && mmdGetNextSibling(next) == NULL)
-          next = mmdGetParent(next);
-
-        next = mmdGetNextSibling(next);
-      }
-    }
-  }
-  else if (bodyfile && (fp = fopen(bodyfile, "r")) != NULL)
-  {
-    char	fragment[8192],		/* Fragment from file */
-		endfrag[6],		/* End fragment */
-		lowlevel = '6',		/* Lowest heading level seen */
-		title[8192],		/* Title for heading */
-		*titleptr,		/* Pointer into title */
-		*titleend,		/* End of title */
-		anchor[256];		/* Anchor for heading */
-    int		level;			/* New heading level */
-    size_t	fraglen;		/* Length of fragment */
-
-
-    while (html_gets(fp, fragment, sizeof(fragment)))
-    {
-     /*
-      * See if this is a heading...
-      */
-
-      if (strncasecmp(fragment, "<h1 ", 4) && strcasecmp(fragment, "<h1>") && strncasecmp(fragment, "<h2 ", 4) && strcasecmp(fragment, "<h2>") && strncasecmp(fragment, "<h3 ", 4) && strcasecmp(fragment, "<h3>"))
-        continue;
-
-     /*
-      * Yes, prep and get the title...
-      */
-
-      if (fragment[2] < lowlevel)
-        lowlevel = fragment[2];
-
-      level     = fragment[2] - lowlevel + 1;
-      title[0]  = '\0';
-      titleptr  = title;
-      titleend  = title + sizeof(title) - 1;
-      *titleend = '\0';
-
-      snprintf(endfrag, sizeof(endfrag), "</h%d>", level + 1);
-
-      zipcXMLGetAttribute(fragment, "id", anchor, sizeof(anchor));
-
-      while (html_gets(fp, fragment, sizeof(fragment)))
-      {
-        if (!strcasecmp(fragment, endfrag))
-        {
-         /*
-          * End of heading...
-          */
-          break;
-        }
-        else if (!strncasecmp(fragment, "<a ", 3) && !anchor[0])
-        {
-         /*
-          * Possible <a name="foo">...
-          */
-
-          if (!zipcXMLGetAttribute(fragment, "id", anchor, sizeof(anchor)))
-            zipcXMLGetAttribute(fragment, "name", anchor, sizeof(anchor));
-        }
-        else if (!strncasecmp(fragment, "<span ", 6))
-        {
-          char	temp[256];		/* Temporary string */
-
-          if (zipcXMLGetAttribute(fragment, "class", temp, sizeof(temp)) && !strcasecmp(temp, "info"))
-          {
-           /*
-            * Skip informational annotation...
-            */
-
-	    while (html_gets(fp, fragment, sizeof(fragment)))
-	      if (!strcasecmp(fragment, "</span>"))
-	        break;
-          }
-        }
-        else if (fragment[0] != '<')
-        {
-          if ((fraglen = strlen(fragment)) > (titleend - titleptr))
-            fraglen = titleend - titleptr;
-
-          strncpy(titleptr, fragment, fraglen);
-          titleptr += fraglen;
-          *titleptr = '\0';
-        }
-      }
-
-     /*
-      * Convert newlines and tabs to spaces, then unescape HTML entities...
-      */
-
-      for (titleptr = title; *titleptr; titleptr ++)
-        if (isspace(*titleptr & 255))
-	  *titleptr = ' ';
-
-      html_unescape(title);
-
-     /*
-      * If both the title and anchor are not empty, add the table-of-contents
-      * entry...
-      */
-
-      if (anchor[0] && title[0])
-        add_toc(toc, level, anchor, title);
-    }
-
-    fclose(fp);
-  }
+  add_file_toc(toc, bodyfile, body);
 
  /*
   * Next the classes...
@@ -1034,6 +1051,22 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
       scut = find_public(scut, doc, "enumeration", NULL, mode);
       add_toc(toc, 2, name, name);
     }
+  }
+
+ /*
+  * Scan the footer file for headings...
+  */
+
+  if (footerfile)
+  {
+    mmd_t *mmd = NULL;
+
+    if (is_markdown(footerfile))
+      mmd = mmdLoad(footerfile);
+
+    add_file_toc(toc, footerfile, mmd);
+
+    mmdFree(mmd);
   }
 
   return (toc);
@@ -1911,7 +1944,8 @@ markdown_write_block(FILE  *out,	/* I - Output file */
   }
   else
   {
-    const char	*element;		/* Enclosing element, if any */
+    const char	*element,		/* Enclosing element, if any */
+		*class_name = NULL;	/* Class name, if any */
 
     switch (type)
     {
@@ -1932,11 +1966,13 @@ markdown_write_block(FILE  *out,	/* I - Output file */
           break;
 
       case MMD_TYPE_HEADING_1 :
-          element = "h2"; /* Offset since title is H1 for codedoc output */
+          element    = "h2"; /* Offset since title is H1 for codedoc output */
+          class_name = "title";
           break;
 
       case MMD_TYPE_HEADING_2 :
-          element = "h3"; /* Offset since title is H1 for codedoc output */
+          element    = "h3"; /* Offset since title is H1 for codedoc output */
+          class_name = "title";
           break;
 
       case MMD_TYPE_HEADING_3 :
@@ -1973,6 +2009,40 @@ markdown_write_block(FILE  *out,	/* I - Output file */
             fputs("    <hr>\n", out);
           return;
 
+      case MMD_TYPE_TABLE :
+	  element = "table";
+	  break;
+
+      case MMD_TYPE_TABLE_HEADER :
+	  element = "thead";
+	  break;
+
+      case MMD_TYPE_TABLE_BODY :
+	  element = "tbody";
+	  break;
+
+      case MMD_TYPE_TABLE_ROW :
+	  element = "tr";
+	  break;
+
+      case MMD_TYPE_TABLE_HEADER_CELL :
+	  element = "th";
+	  break;
+
+      case MMD_TYPE_TABLE_BODY_CELL_LEFT :
+	  element = "td";
+	  break;
+
+      case MMD_TYPE_TABLE_BODY_CELL_CENTER :
+	  element    = "td";
+	  class_name = "center";
+	  break;
+
+      case MMD_TYPE_TABLE_BODY_CELL_RIGHT :
+	  element    = "td";
+	  class_name = "right";
+	  break;
+
       default :
           element = NULL;
           break;
@@ -1984,7 +2054,10 @@ markdown_write_block(FILE  *out,	/* I - Output file */
       * Add an anchor...
       */
 
-      fprintf(out, "    <%s><a id=\"", element);
+      if (class_name)
+	fprintf(out, "    <%s class=\"%s\" id=\"", element, class_name);
+      else
+	fprintf(out, "    <%s id=\"", element);
       for (node = mmdGetFirstChild(parent); node; node = mmdGetNextSibling(node))
       {
         if (mmdGetWhitespace(node))
@@ -1995,7 +2068,12 @@ markdown_write_block(FILE  *out,	/* I - Output file */
       fputs("\">", out);
     }
     else if (element)
-      fprintf(out, "    <%s>%s", element, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
+    {
+      if (class_name)
+	fprintf(out, "    <%s class=\"%s\">%s", element, class_name, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
+      else
+	fprintf(out, "    <%s>%s", element, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
+    }
 
     for (node = mmdGetFirstChild(parent); node; node = mmdGetNextSibling(node))
     {
@@ -2005,9 +2083,7 @@ markdown_write_block(FILE  *out,	/* I - Output file */
         markdown_write_leaf(out, node, mode);
     }
 
-    if (type >= MMD_TYPE_HEADING_1 && type <= MMD_TYPE_HEADING_6)
-      fprintf(out, "</a></%s>\n", element);
-    else if (element)
+    if (element)
       fprintf(out, "</%s>\n", element);
   }
 }
@@ -4437,7 +4513,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
 
   if ((epubf = zipcCreateFile(epub, "OEBPS/nav.xhtml", 1)) != NULL)
   {
-    toc = build_toc(doc, bodyfile, body, OUTPUT_EPUB);
+    toc = build_toc(doc, bodyfile, body, footerfile, OUTPUT_EPUB);
 
     zipcFilePrintf(epubf, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                           "<!DOCTYPE html>\n"
@@ -4739,7 +4815,7 @@ write_html(const char  *section,	/* I - Section */
   * Create the table-of-contents entries...
   */
 
-  toc = build_toc(doc, bodyfile, body, OUTPUT_HTML);
+  toc = build_toc(doc, bodyfile, body, footerfile, OUTPUT_HTML);
 
  /*
   * Standard header...
@@ -4822,7 +4898,7 @@ write_html(const char  *section,	/* I - Section */
     */
 
     puts("    </div>");
-    puts("    <div class=\"header\">");
+    puts("    <div class=\"footer\">");
 
     write_file(stdout, footerfile, OUTPUT_HTML);
   }
@@ -5189,85 +5265,55 @@ write_html_head(FILE       *out,	/* I - Output file */
     * Use standard stylesheet...
     */
 
-    fputs("body, p, h1, h2, h3, h4 {\n"
+    fputs("body, p, h1, h2, h3, h4, h5, h6 {\n"
 	  "  font-family: sans-serif;\n"
 	  "}\n"
-	  "div.body h1 {\n"
-	  "  font-size: 250%;\n"
+	  "h1, h2, h3, h4, h5, h6 {\n"
 	  "  font-weight: bold;\n"
+	  "  page-break-inside: avoid;\n"
+	  "}\n"
+	  "h1 {\n"
+	  "  font-size: 250%;\n"
 	  "  margin: 0;\n"
 	  "}\n"
-	  "div.body h2 {\n"
+	  "h2 {\n"
 	  "  font-size: 250%;\n"
 	  "  margin-top: 1.5em;\n"
 	  "}\n"
-	  "div.body h3 {\n"
+	  "h3 {\n"
+	  "  font-size: 200%;\n"
+	  "  margin-bottom: 0.5em;\n"
+	  "  margin-top: 1.5em;\n"
+	  "}\n"
+	  "h4 {\n"
 	  "  font-size: 150%;\n"
 	  "  margin-bottom: 0.5em;\n"
 	  "  margin-top: 1.5em;\n"
 	  "}\n"
-	  "div.body h4 {\n"
+	  "h5 {\n"
+	  "  font-size: 125%;\n"
+	  "  margin-bottom: 0.5em;\n"
+	  "  margin-top: 1.5em;\n"
+	  "}\n"
+	  "h6 {\n"
 	  "  font-size: 110%;\n"
 	  "  margin-bottom: 0.5em;\n"
 	  "  margin-top: 1.5em;\n"
 	  "}\n"
-	  "div.body h5 {\n"
-	  "  font-size: 100%;\n"
-	  "  margin-bottom: 0.5em;\n"
-	  "  margin-top: 1.5em;\n"
+	  "div.header h1, div.header p {\n"
+	  "  text-align: center;\n"
 	  "}\n"
-	  "div.contents {\n"
-	  "  background: #e8e8e8;\n"
-	  "  border: solid thin black;\n"
-	  "  padding: 10px;\n"
+	  "div.contents, div.body, div.footer {\n"
+	  "  page-break-before: always;\n"
 	  "}\n"
-	  "div.contents h1 {\n"
-	  "  font-size: 110%;\n"
-	  "}\n"
-	  "div.contents h2 {\n"
-	  "  font-size: 100%;\n"
-	  "}\n"
-	  "div.contents ul.contents {\n"
-	  "  font-size: 80%;\n"
-	  "}\n"
-	  ".class {\n"
+	  ".class, .enumeration, .function, .struct, .typedef, .union {\n"
 	  "  border-bottom: solid 2px gray;\n"
-	  "}\n"
-	  ".constants {\n"
 	  "}\n"
 	  ".description {\n"
 	  "  margin-top: 0.5em;\n"
 	  "}\n"
-	  ".discussion {\n"
-	  "}\n"
-	  ".enumeration {\n"
-	  "  border-bottom: solid 2px gray;\n"
-	  "}\n"
 	  ".function {\n"
-	  "  border-bottom: solid 2px gray;\n"
 	  "  margin-bottom: 0;\n"
-	  "}\n"
-	  ".members {\n"
-	  "}\n"
-	  ".method {\n"
-	  "}\n"
-	  ".parameters {\n"
-	  "}\n"
-	  ".returnvalue {\n"
-	  "}\n"
-	  ".struct {\n"
-	  "  border-bottom: solid 2px gray;\n"
-	  "}\n"
-	  ".typedef {\n"
-	  "  border-bottom: solid 2px gray;\n"
-	  "}\n"
-	  ".union {\n"
-	  "  border-bottom: solid 2px gray;\n"
-	  "}\n"
-	  ".variable {\n"
-	  "}\n"
-	  "h1, h2, h3, h4, h5, h6 {\n"
-	  "  page-break-inside: avoid;\n"
 	  "}\n"
 	  "blockquote {\n"
 	  "  border: solid thin gray;\n"
@@ -5302,7 +5348,7 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "  font-weight: bold;\n"
 	  "  white-space: nowrap;\n"
 	  "}\n"
-	  "h3 span.info, h4 span.info {\n"
+	  "h1 span.info, h2 span.info, h3 span.info, h4 span.info {\n"
 	  "  border-top-left-radius: 10px;\n"
 	  "  border-top-right-radius: 10px;\n"
 	  "  float: right;\n"
@@ -5322,14 +5368,39 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "ul.contents li ul.code, ul.contents li ul.subcontents {\n"
 	  "  padding-left: 2em;\n"
 	  "}\n"
+	  "table {\n"
+	  "  border-collapse: collapse;\n"
+	  "  border-spacing: 0;\n"
+	  "}\n"
+	  "td {\n"
+	  "  border: solid 1px #666;\n"
+	  "  padding: 5px 10px;\n"
+	  "  vertical-align: top;\n"
+	  "}\n"
+	  "td.left {\n"
+	  "  text-align: left;\n"
+	  "}\n"
+	  "td.center {\n"
+	  "  text-align: center;\n"
+	  "}\n"
+	  "td.right {\n"
+	  "  text-align: right;\n"
+	  "}\n"
+	  "th {\n"
+	  "  border-bottom: solid 2px #000;\n"
+	  "  padding: 1px 5px;\n"
+	  "  text-align: center;\n"
+	  "  vertical-align: bottom;\n"
+	  "}\n"
+	  "tr:nth-child(even) {\n"
+	  "  background: rgba(127,127,127,0.1);n"
+	  "}\n"
 	  "table.list {\n"
 	  "  border-collapse: collapse;\n"
 	  "  width: 100%;\n"
 	  "}\n"
-	  "table.list tr:nth-child(even) {\n"
-	  "  background: rgba(127,127,127,0.1);]n"
-	  "}\n"
 	  "table.list th {\n"
+	  "  border-bottom: none;\n"
 	  "  border-right: 2px solid gray;\n"
 	  "  font-family: monospace;\n"
 	  "  padding: 5px 10px 5px 2px;\n"
@@ -5337,16 +5408,12 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "  vertical-align: top;\n"
 	  "}\n"
 	  "table.list td {\n"
+	  "  border: none;\n"
 	  "  padding: 5px 2px 5px 10px;\n"
 	  "  text-align: left;\n"
 	  "  vertical-align: top;\n"
 	  "}\n"
-	  "h1.title {\n"
-	  "}\n"
-	  "h2.title {\n"
-	  "  border-bottom: solid 2px black;\n"
-	  "}\n"
-	  "h3.title {\n"
+	  "h2.title, h3.title {\n"
 	  "  border-bottom: solid 2px black;\n"
 	  "}\n", out);
   }

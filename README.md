@@ -1,4 +1,4 @@
-Codedoc v3.0
+Codedoc v3.1
 ============
 
 Codedoc is a general-purpose utility which scans HTML, markdown, C, and C++
@@ -48,7 +48,7 @@ and macOS, and depends on ZLIB.  Type `make` to build the software:
 Installing Codedoc
 ------------------
 
-To install the software, run `sudo make install`:
+To install the software, run:
 
     sudo make install
 

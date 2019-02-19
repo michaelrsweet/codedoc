@@ -171,21 +171,6 @@ directive strings:
   documentation, e.g. `@since libexample 1.1@`.
 
 
-Annotating HTML
-===============
-
-Headings
---------
-
-
-Availability
-------------
-
-
-Annotating Markdown
-===================
-
-
 EPUB and HTML Stylesheets
 =========================
 
@@ -201,15 +186,16 @@ it using the `--css` option, for example:
 > use lowercase element names ("pre", not "PRE", etc.)
 
 
-Classes
--------
+CSS Classes
+-----------
 
-The following HTML classes are used to group the sections in the generated
+The following CSS classes are used to group the sections in the generated
 documentation:
 
 | Class        | Description                      | Usage                      |
 | ------------ | -------------------------------- | -------------------------- |
 | body         | The body of the documentation    | `<div class="body">`       |
+| center       | Centered text in cell            | `<td class="center">`      |
 | class        | A class                          | `<hN class="class">`       |
 | code         | Wrapped monospace code text      | `<p class="code">`         |
 | constants    | A list of constants              | `<hN class="constants">`   |
@@ -225,11 +211,13 @@ documentation:
 | function     | A global function                | `<hN class="function">`    |
 | header       | The header of the documentation  | `<div class="header">`     |
 | info         | Availability information         | `<span class="info">`      |
+| left         | Left-aligned text in cell        | `<td class="left">`        |
 | list         | A table list                     | `<table class="list">`     |
 | members      | A list of class/struct members   | `<table class="members">`  |
 | method       | A class or structure method      | `<hN class="method">`      |
 | parameters   | A list of function parameters    | `<hN class="parameters">`  |
 | returnvalue  | The return value of a function   | `<hN class="returnvalue">` |
+| right        | Right-aligned text in cell       | `<td class="right">`       |
 | struct       | A structure                      | `<hN class="struct">`      |
 | subcontents  | Second-level contents            | `<ul class="subcontents">` |
 | title        | A title                          | `<hN class="title">`       |
@@ -242,85 +230,55 @@ Default Stylesheet
 ------------------
 
 ```
-body, p, h1, h2, h3, h4 {
+body, p, h1, h2, h3, h4, h5, h6 {
   font-family: sans-serif;
 }
-div.body h1 {
-  font-size: 250%;
+h1, h2, h3, h4, h5, h6 {
   font-weight: bold;
+  page-break-inside: avoid;
+}
+h1 {
+  font-size: 250%;
   margin: 0;
 }
-div.body h2 {
+h2 {
   font-size: 250%;
   margin-top: 1.5em;
 }
-div.body h3 {
+h3 {
+  font-size: 200%;
+  margin-bottom: 0.5em;
+  margin-top: 1.5em;
+}
+h4 {
   font-size: 150%;
   margin-bottom: 0.5em;
   margin-top: 1.5em;
 }
-div.body h4 {
+h5 {
+  font-size: 125%;
+  margin-bottom: 0.5em;
+  margin-top: 1.5em;
+}
+h6 {
   font-size: 110%;
   margin-bottom: 0.5em;
   margin-top: 1.5em;
 }
-div.body h5 {
-  font-size: 100%;
-  margin-bottom: 0.5em;
-  margin-top: 1.5em;
+div.header h1, div.header p {
+  text-align: center;
 }
-div.contents {
-  background: #e8e8e8;
-  border: solid thin black;
-  padding: 10px;
+div.contents, div.body, div.footer {
+  page-break-before: always;
 }
-div.contents h1 {
-  font-size: 110%;
-}
-div.contents h2 {
-  font-size: 100%;
-}
-div.contents ul.contents {
-  font-size: 80%;
-}
-.class {
+.class, .enumeration, .function, .struct, .typedef, .union {
   border-bottom: solid 2px gray;
-}
-.constants {
 }
 .description {
   margin-top: 0.5em;
 }
-.discussion {
-}
-.enumeration {
-  border-bottom: solid 2px gray;
-}
 .function {
-  border-bottom: solid 2px gray;
   margin-bottom: 0;
-}
-.members {
-}
-.method {
-}
-.parameters {
-}
-.returnvalue {
-}
-.struct {
-  border-bottom: solid 2px gray;
-}
-.typedef {
-  border-bottom: solid 2px gray;
-}
-.union {
-  border-bottom: solid 2px gray;
-}
-.variable {
-}
-h1, h2, h3, h4, h5, h6 {
-  page-break-inside: avoid;
 }
 blockquote {
   border: solid thin gray;
@@ -355,7 +313,7 @@ span.info {
   font-weight: bold;
   white-space: nowrap;
 }
-h3 span.info, h4 span.info {
+h1 span.info, h2 span.info, h3 span.info, h4 span.info {
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
   float: right;
@@ -375,14 +333,39 @@ ul.contents > li {
 ul.contents li ul.code, ul.contents li ul.subcontents {
   padding-left: 2em;
 }
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+td {
+  border: solid 1px #666;
+  padding: 5px 10px;
+  vertical-align: top;
+}
+td.left {
+  text-align: left;
+}
+td.center {
+  text-align: center;
+}
+td.right {
+  text-align: right;
+}
+th {
+  border-bottom: solid 2px #000;
+  padding: 1px 5px;
+  text-align: center;
+  vertical-align: bottom;
+}
+tr:nth-child(odd) {
+  background: rgba(127,127,127,0.1);
+}
 table.list {
   border-collapse: collapse;
   width: 100%;
 }
-table.list tr:nth-child(even) {
-  background: rgba(127,127,127,0.1);]n"
-}
 table.list th {
+  border-bottom: none;
   border-right: 2px solid gray;
   font-family: monospace;
   padding: 5px 10px 5px 2px;
@@ -390,16 +373,12 @@ table.list th {
   vertical-align: top;
 }
 table.list td {
+  border: none;
   padding: 5px 2px 5px 10px;
   text-align: left;
   vertical-align: top;
 }
-h1.title {
-}
-h2.title {
-  border-bottom: solid 2px black;
-}
-h3.title {
+h2.title, h3.title {
   border-bottom: solid 2px black;
 }
 ```
