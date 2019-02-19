@@ -64,3 +64,6 @@ $(OBJS):	Makefile
 codedoc.o:	mmd.h zipc.h
 mmd.o:		mmd.h
 zipc.o:		zipc.h
+
+codedoc.html:	codedoc DOCUMENTATION.md
+	./codedoc --body DOCUMENTATION.md >codedoc.html
