@@ -5280,6 +5280,7 @@ write_html_head(FILE       *out,	/* I - Output file */
 
     fputs("body, p, h1, h2, h3, h4, h5, h6 {\n"
 	  "  font-family: sans-serif;\n"
+	  "  line-height: 1.4;\n"
 	  "}\n"
 	  "h1, h2, h3, h4, h5, h6 {\n"
 	  "  font-weight: bold;\n"
