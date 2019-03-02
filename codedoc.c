@@ -4840,8 +4840,15 @@ write_html(const char  *section,	/* I - Section */
 
   if (coverimage)
   {
+    const char	*coverbase;		/* Base name for cover image */
+
+    if ((coverbase = strrchr(coverimage, '/')) != NULL)
+      coverbase ++;
+    else
+      coverbase = coverimage;
+
     fputs("      <p><img src=\"", stdout);
-    write_string(stdout, coverimage, OUTPUT_HTML);
+    write_string(stdout, coverbase, OUTPUT_HTML);
     fputs("\" width=\"100%\"></p>\n", stdout);
   }
 
