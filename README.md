@@ -16,6 +16,8 @@ utility.
 Changes in v3.2
 ---------------
 
+- The default HTML stylesheet no longer puts an outline box around monospaced
+  text (Issue #2)
 - Fixed some markdown parsing issues.
 
 
