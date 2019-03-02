@@ -9,7 +9,21 @@
  * information.
  */
 
- /*
+/*
+ * Define DEBUG to get debug printf messages to stderr.
+ */
+
+#define DEBUG 0
+#if DEBUG
+#  define DEBUG_printf(...)	fprintf(stderr, __VA_ARGS__)
+#  define DEBUG_puts(s)		fputs(s, stderr);
+#else
+#  define DEBUG_printf(...)
+#  define DEBUG_puts(s)
+#endif /* DEBUG */
+
+
+/*
  * Beginning with VC2005, Microsoft breaks ISO C and POSIX conformance
  * by deprecating a number of functions in the name of security, even
  * when many of the affected functions are otherwise completely secure.
@@ -90,11 +104,15 @@ typedef struct _mmd_doc_s
 
 static mmd_t    *mmd_add(mmd_t *parent, mmd_type_t type, int whitespace, char *text, char *url);
 static void     mmd_free(mmd_t *node);
+static int	mmd_is_table(FILE *fp);
 static void     mmd_parse_inline(_mmd_doc_t *doc, mmd_t *parent, char *line);
 static char     *mmd_parse_link(_mmd_doc_t *doc, char *lineptr, char **text, char **url, char **refname);
 static void	mmd_ref_add(_mmd_doc_t *doc, mmd_t *node, const char *name, const char *url);
 static _mmd_ref_t *mmd_ref_find(_mmd_doc_t *doc, const char *name);
 static void     mmd_remove(mmd_t *node);
+#if DEBUG
+static const char *mmd_type_string(mmd_type_t type);
+#endif /* DEBUG */
 
 
 /*
@@ -479,7 +497,10 @@ mmdLoadFile(FILE *fp)                   /* I - File to load */
       if (block)
       {
         if (block->type == MMD_TYPE_CODE_BLOCK)
+        {
+          DEBUG_puts("Ending code block...\n");
           block = NULL;
+        }
         else if (block->type == MMD_TYPE_LIST_ITEM)
           block = mmd_add(block, MMD_TYPE_CODE_BLOCK, 0, NULL, NULL);
         else if (block->parent->type == MMD_TYPE_LIST_ITEM)
@@ -566,6 +587,8 @@ mmdLoadFile(FILE *fp)                   /* I - File to load */
     }
     else if (current->type == MMD_TYPE_BLOCK_QUOTE)
       current = current->parent;
+    else if (current->type == MMD_TYPE_TABLE && current->parent && current->parent->type == MMD_TYPE_BLOCK_QUOTE)
+      current = current->parent->parent;
 
     if (!*lineptr)
     {
@@ -573,7 +596,7 @@ mmdLoadFile(FILE *fp)                   /* I - File to load */
       block      = NULL;
       continue;
     }
-    else if (strchr(lineptr, '|'))
+    else if (strchr(lineptr, '|') && (current->type == MMD_TYPE_TABLE || mmd_is_table(fp)))
     {
      /*
       * Table...
@@ -585,14 +608,14 @@ mmdLoadFile(FILE *fp)                   /* I - File to load */
       mmd_t	*row = NULL,		/* Current row */
 		*cell;			/* Current cell */
 
-//      fprintf(stderr, "TABLE current=%p (%d), rows=%d\n", current, current->type, rows);
+      DEBUG_printf("TABLE current=%p (%d), rows=%d\n", current, current->type, rows);
 
       if (current->type != MMD_TYPE_TABLE)
       {
         if (current != doc.root && current->type != MMD_TYPE_BLOCK_QUOTE)
           current = current->parent;
 
-//        fprintf(stderr, "ADDING NEW TABLE to %p (%d)\n", current, current->type);
+        DEBUG_printf("ADDING NEW TABLE to %p (%d)\n", current, current->type);
 
         current = mmd_add(current, MMD_TYPE_TABLE, 0, NULL, NULL);
         block   = mmd_add(current, MMD_TYPE_TABLE_HEADER, 0, NULL, NULL);
@@ -665,7 +688,7 @@ mmdLoadFile(FILE *fp)                   /* I - File to load */
           else if (*end == ':')
             columns[col] = MMD_TYPE_TABLE_BODY_CELL_RIGHT;
 
-//          fprintf(stderr, "COLUMN %d SEPARATOR=\"%s\", TYPE=%d\n", col, start, columns[col]);
+          DEBUG_printf("COLUMN %d SEPARATOR=\"%s\", TYPE=%d\n", col, start, columns[col]);
         }
       }
 
@@ -691,7 +714,7 @@ mmdLoadFile(FILE *fp)                   /* I - File to load */
     }
     else if (current->type == MMD_TYPE_TABLE)
     {
-//      fputs("END TABLE\n", stderr);
+      DEBUG_puts("END TABLE\n");
       current = current->parent;
       block   = NULL;
     }
@@ -745,7 +768,7 @@ mmdLoadFile(FILE *fp)                   /* I - File to load */
       if (current == doc.root && doc.root->last_child && doc.root->last_child->type == MMD_TYPE_UNORDERED_LIST)
         current = doc.root->last_child;
       else if (current->type != MMD_TYPE_UNORDERED_LIST)
-        current = mmd_add(current, MMD_TYPE_UNORDERED_LIST, 0, NULL, NULL);
+        current = mmd_add(current->type == MMD_TYPE_BLOCK_QUOTE ? current : doc.root, MMD_TYPE_UNORDERED_LIST, 0, NULL, NULL);
 
       type  = MMD_TYPE_LIST_ITEM;
       block = NULL;
@@ -900,6 +923,8 @@ mmd_add(mmd_t      *parent,             /* I - Parent node */
   mmd_t         *temp;                  /* New node */
 
 
+  DEBUG_printf("Adding %s to %p(%s), whitespace=%d, text=\"%s\", url=\"%s\"\n", mmd_type_string(type), parent, parent ? mmd_type_string(parent->type) : "", whitespace, text ? text : "(null)", url ? url : "(null)");
+
   if ((temp = calloc(1, sizeof(mmd_t))) != NULL)
   {
     if (parent)
@@ -954,6 +979,41 @@ mmd_free(mmd_t *node)                   /* I - Node */
     free(node->url);
 
   free(node);
+}
+
+
+/*
+ * 'mmd_is_table()' - Look ahead to see if the next line contains a heading
+ *                    divider for a table.
+ */
+
+static int				/* O - 1 if this is a table, 0 otherwise */
+mmd_is_table(FILE *fp)			/* I - File to read from */
+{
+  int	is_table = 0;			/* Is this a table? */
+  long	pos;				/* Current position in file */
+  char	line[65536],			/* Line from file */
+	*ptr;				/* Pointer into line */
+
+
+  pos = ftell(fp);
+
+  if (fgets(line, sizeof(line), fp))
+  {
+    for (ptr = line; *ptr; ptr ++)
+    {
+      if (*ptr == '>' && ptr == line)
+	continue;
+      else if (!strchr(" \t\n\r:-|", *ptr))
+	break;
+    }
+
+    is_table = !*ptr;
+  }
+
+  fseek(fp, pos, SEEK_SET);
+
+  return (is_table);
 }
 
 
@@ -1426,3 +1486,92 @@ mmd_remove(mmd_t *node)                 /* I - Node */
     node->next_sibling = NULL;
   }
 }
+
+
+#if DEBUG
+/*
+ * 'mmd_type_string()' - Return a string for the specified type enumeration.
+ */
+
+static const char *			/* O - String representing the type */
+mmd_type_string(mmd_type_t type)	/* I - Type value */
+{
+  static char	unknown[64];		/* Unknown type buffer */
+
+
+  switch (type)
+  {
+    case MMD_TYPE_NONE :
+        return ("MMD_TYPE_NONE");
+    case MMD_TYPE_DOCUMENT :
+        return "MMD_TYPE_DOCUMENT";
+    case MMD_TYPE_METADATA :
+        return "MMD_TYPE_METADATA";
+    case MMD_TYPE_BLOCK_QUOTE :
+        return "MMD_TYPE_BLOCK_QUOTE";
+    case MMD_TYPE_ORDERED_LIST :
+        return "MMD_TYPE_ORDERED_LIST";
+    case MMD_TYPE_UNORDERED_LIST :
+        return "MMD_TYPE_UNORDERED_LIST";
+    case MMD_TYPE_LIST_ITEM :
+        return "MMD_TYPE_LIST_ITEM";
+    case MMD_TYPE_TABLE :
+        return "MMD_TYPE_TABLE";
+    case MMD_TYPE_TABLE_HEADER :
+        return "MMD_TYPE_TABLE_HEADER";
+    case MMD_TYPE_TABLE_BODY :
+        return "MMD_TYPE_TABLE_BODY";
+    case MMD_TYPE_TABLE_ROW :
+        return "MMD_TYPE_TABLE_ROW";
+    case MMD_TYPE_HEADING_1 :
+        return "MMD_TYPE_HEADING_1";
+    case MMD_TYPE_HEADING_2 :
+        return "MMD_TYPE_HEADING_2";
+    case MMD_TYPE_HEADING_3 :
+        return "MMD_TYPE_HEADING_3";
+    case MMD_TYPE_HEADING_4 :
+        return "MMD_TYPE_HEADING_4";
+    case MMD_TYPE_HEADING_5 :
+        return "MMD_TYPE_HEADING_5";
+    case MMD_TYPE_HEADING_6 :
+        return "MMD_TYPE_HEADING_6";
+    case MMD_TYPE_PARAGRAPH :
+        return "MMD_TYPE_PARAGRAPH";
+    case MMD_TYPE_CODE_BLOCK :
+        return "MMD_TYPE_CODE_BLOCK";
+    case MMD_TYPE_THEMATIC_BREAK :
+        return "MMD_TYPE_THEMATIC_BREAK";
+    case MMD_TYPE_TABLE_HEADER_CELL :
+        return "MMD_TYPE_TABLE_HEADER_CELL";
+    case MMD_TYPE_TABLE_BODY_CELL_LEFT :
+        return "MMD_TYPE_TABLE_BODY_CELL_LEFT";
+    case MMD_TYPE_TABLE_BODY_CELL_CENTER :
+        return "MMD_TYPE_TABLE_BODY_CELL_CENTER";
+    case MMD_TYPE_TABLE_BODY_CELL_RIGHT :
+        return "MMD_TYPE_TABLE_BODY_CELL_RIGHT";
+    case MMD_TYPE_NORMAL_TEXT :
+        return "MMD_TYPE_NORMAL_TEXT";
+    case MMD_TYPE_EMPHASIZED_TEXT :
+        return "MMD_TYPE_EMPHASIZED_TEXT";
+    case MMD_TYPE_STRONG_TEXT :
+        return "MMD_TYPE_STRONG_TEXT";
+    case MMD_TYPE_STRUCK_TEXT :
+        return "MMD_TYPE_STRUCK_TEXT";
+    case MMD_TYPE_LINKED_TEXT :
+        return "MMD_TYPE_LINKED_TEXT";
+    case MMD_TYPE_CODE_TEXT :
+        return "MMD_TYPE_CODE_TEXT";
+    case MMD_TYPE_IMAGE :
+        return "MMD_TYPE_IMAGE";
+    case MMD_TYPE_HARD_BREAK :
+        return "MMD_TYPE_HARD_BREAK";
+    case MMD_TYPE_SOFT_BREAK :
+        return "MMD_TYPE_SOFT_BREAK";
+    case MMD_TYPE_METADATA_TEXT :
+        return "MMD_TYPE_METADATA_TEXT";
+    default :
+        snprintf(unknown, sizeof(unknown), "?? %d ??", (int)type);
+        return (unknown);
+  }
+}
+#endif /* DEBUG */
