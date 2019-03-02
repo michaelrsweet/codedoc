@@ -232,6 +232,7 @@ Default Stylesheet
 ```
 body, p, h1, h2, h3, h4, h5, h6 {
   font-family: sans-serif;
+  line-height: 1.4;
 }
 h1, h2, h3, h4, h5, h6 {
   font-weight: bold;
@@ -287,19 +288,15 @@ blockquote {
   page-break-inside: avoid;
 }
 p code, li code, p.code, pre, ul.code li {
-  background: rgba(127,127,127,0.1);
-  border: thin dotted gray;
   font-family: monospace;
-  font-size: 90%;
   hyphens: manual;
   -webkit-hyphens: manual;
-  page-break-inside: avoid;
 }
 p.code, pre, ul.code li {
+  background: rgba(127,127,127,0.1);
+  border: thin dotted gray;
   padding: 10px;
-}
-p code, li code {
-  padding: 2px 5px;
+  page-break-inside: avoid;
 }
 a:link, a:visited {
   text-decoration: none;
