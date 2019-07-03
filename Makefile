@@ -21,7 +21,6 @@ CFLAGS	=	$(OPTIM) -Wall '-DVERSION="$(VERSION)"' $(OPTIONS)
 LDFLAGS	=	$(OPTIM)
 LIBS	=	-lmxml -lz -lm
 OPTIM	=	-Os -g
-#OPTIM	=	-g -fsanitize=address
 OPTIONS	=
 #OPTIONS	=	-DDEBUG=1
 
@@ -42,6 +41,10 @@ install:	$(TARGETS)
 	cp codedoc $(bindir)
 	mkdir -p $(mandir)/man1
 	cp codedoc.1 $(mandir)/man1
+
+sanitizer:
+	$(MAKE) clean
+	$(MAKE) OPTIM="-g -fsanitize=address" all
 
 TESTOPTIONS	=	\
 			--author "Michael R Sweet" \
