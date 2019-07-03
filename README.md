@@ -18,6 +18,7 @@ Changes in v3.2
 
 - The default HTML stylesheet no longer puts an outline box around monospaced
   text (Issue #2)
+- Fixed a buffer overflow issue with fuzzer-generated "code" (Issue #5)
 - Now use the base name of the cover image filename in HTML output.
 - Fixed some markdown parsing issues.
 

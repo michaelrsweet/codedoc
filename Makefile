@@ -20,8 +20,8 @@ CC	=	gcc
 CFLAGS	=	$(OPTIM) -Wall '-DVERSION="$(VERSION)"' $(OPTIONS)
 LDFLAGS	=	$(OPTIM)
 LIBS	=	-lmxml -lz -lm
-OPTIM	=	-Os -g
-#OPTIM	=	-g -fsanitize=address
+#OPTIM	=	-Os -g
+OPTIM	=	-g -fsanitize=address
 OPTIONS	=
 #OPTIONS	=	-DDEBUG=1
 

@@ -854,7 +854,7 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
     {
       string = mxmlGetText(node, &whitespace);
 
-      if (whitespace && bufptr > buffer)
+      if (whitespace && bufptr > buffer && bufptr < (buffer + sizeof(buffer) - 1))
 	*bufptr++ = ' ';
 
       strlcpy(bufptr, string, sizeof(buffer) - (size_t)(bufptr - buffer));
