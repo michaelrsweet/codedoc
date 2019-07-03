@@ -2406,7 +2406,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
                     DEBUG_puts("Identifier: <<<< / >>>\n");
 
                     ch = get_nth_text(type, -1, NULL)[0];
-		    mxmlNewText(type, isalnum(ch) || ch == '_', "/");
+		    mxmlNewText(type, isalnum(ch & 255) || ch == '_', "/");
 		  }
 		}
 		break;
@@ -2847,7 +2847,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
                   DEBUG_puts("Identifier: <<<< * >>>\n");
 
                   ch = get_nth_text(type, -1, NULL)[0];
-		  mxmlNewText(type, isalnum(ch) || ch == '_', "*");
+		  mxmlNewText(type, isalnum(ch & 255) || ch == '_', "*");
 		}
 		break;
 
@@ -2875,7 +2875,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
                   DEBUG_puts("Identifier: <<<< + >>>\n");
 
                   ch = get_nth_text(type, -1, NULL)[0];
-		  mxmlNewText(type, isalnum(ch) || ch == '_', "+");
+		  mxmlNewText(type, isalnum(ch & 255) || ch == '_', "+");
 		}
 		break;
 
@@ -2885,7 +2885,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
                   DEBUG_puts("Identifier: <<<< - >>>\n");
 
                   ch = get_nth_text(type, -1, NULL)[0];
-		  mxmlNewText(type, isalnum(ch) || ch == '_', "-");
+		  mxmlNewText(type, isalnum(ch & 255) || ch == '_', "-");
 		}
 		break;
 
@@ -2895,12 +2895,12 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
                   DEBUG_puts("Identifier: <<<< = >>>\n");
 
                   ch = get_nth_text(type, -1, NULL)[0];
-		  mxmlNewText(type, isalnum(ch) || ch == '_', "=");
+		  mxmlNewText(type, isalnum(ch & 255) || ch == '_', "=");
 		}
 		break;
 
             default :			/* Other */
-	        if (isalnum(ch) || ch == '_' || ch == '.' || ch == ':' || ch == '~')
+	        if (isalnum(ch & 255) || ch == '_' || ch == '.' || ch == ':' || ch == '~')
 		{
 		  state = STATE_IDENTIFIER;
 
@@ -3368,7 +3368,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
           break;
 
       case STATE_IDENTIFIER :		/* Inside a keyword or identifier */
-	  if (isalnum(ch) || ch == '_' || ch == '[' || ch == ']' ||
+	  if (isalnum(ch & 255) || ch == '_' || ch == '[' || ch == ']' ||
 	      (ch == ',' && (parens > 1 || (type && !enumeration && !function))) ||
 	      ch == ':' || ch == '.' || ch == '~')
 	  {
