@@ -3063,7 +3063,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  }
 		  else if (ch == '\n' && stringbuf_length(&buffer) > 0)
 		    stringbuf_append(&buffer, ch);
-		  else if (!isspace(ch))
+		  else if (!isspace(ch & 255))
 		    break;
 
 		if (ch != EOF)
