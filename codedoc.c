@@ -2016,7 +2016,11 @@ markdown_write_block(FILE  *out,	/* I - Output file */
           break;
 
       case MMD_TYPE_CODE_BLOCK :
-          fputs("    <pre><code>", out);
+	  if ((class_name = mmdGetExtra(parent)) != NULL)
+	    fprintf(out, "    <pre><code class=\"language-%s\">", class_name);
+	  else
+	    fputs("    <pre><code>", out);
+
           for (node = mmdGetFirstChild(parent); node; node = mmdGetNextSibling(node))
             write_string(out, mmdGetText(node), mode);
           fputs("</code></pre>\n", out);
@@ -2118,10 +2122,14 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
                     mmd_t *node,	/* I - Node to write */
                     int   mode)		/* I - Output mode */
 {
+  mmd_type_t	type,			/* Current leaf node type */
+		prev_type,		/* Previous leaf node type */
+		next_type;		/* Next leaf node type */
   const char    *text,                  /* Text to write */
                 *url;                   /* URL to write */
 
 
+  type = mmdGetType(node);
   text = mmdGetText(node);
   url  = mmdGetURL(node);
 
@@ -2129,7 +2137,7 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
   {
     const char *suffix = NULL;		/* Trailing string */
 
-    switch (mmdGetType(node))
+    switch (type)
     {
       case MMD_TYPE_EMPHASIZED_TEXT :
           if (mmdGetWhitespace(node))
@@ -2176,7 +2184,7 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
     if (mmdGetWhitespace(node))
       fputc(' ', out);
 
-    switch (mmdGetType(node))
+    switch (type)
     {
       case MMD_TYPE_EMPHASIZED_TEXT :
           element = "em";
@@ -2210,10 +2218,13 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
           return;
 
       case MMD_TYPE_HARD_BREAK :
-          if (mode == OUTPUT_EPUB)
-            fputs("<br />\n", out);
-          else
-            fputs("<br>\n", out);
+	  if (mmdGetType(mmdGetParent(node)) < MMD_TYPE_HEADING_1 || mmdGetType(mmdGetParent(node)) > MMD_TYPE_HEADING_6)
+	  {
+	    if (mode == OUTPUT_EPUB)
+	      fputs("<br />\n", out);
+	    else
+	      fputs("<br>\n", out);
+	  }
           return;
 
       case MMD_TYPE_SOFT_BREAK :
@@ -2231,24 +2242,47 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
           break;
     }
 
+    prev_type = mmdGetType(mmdGetPrevSibling(node));
+    next_type = mmdGetType(mmdGetNextSibling(node));
+
     if (url)
     {
-      if (!strcmp(url, "@"))
-        fprintf(out, "<a href=\"#%s\">", markdown_anchor(text));
-      else
-        fprintf(out, "<a href=\"%s\">", url);
+      const char *prev_url = mmdGetURL(mmdGetPrevSibling(node));
+      const char *title = mmdGetExtra(node);
+
+      if (!prev_url || strcmp(prev_url, url))
+      {
+	if (!strcmp(url, "@"))
+	  fprintf(out, "<a href=\"#%s\"", markdown_anchor(text));
+	else
+	  fprintf(out, "<a href=\"%s\"", url);
+
+	if (title)
+	{
+	  fputs(" title=\"", out);
+	  write_string(out, title, mode);
+	  fputs("\">", out);
+	}
+	else
+	  putc('>', out);
+      }
     }
 
-    if (element)
+    if (element && prev_type != type)
       fprintf(out, "<%s>", element);
 
     write_string(out, text, mode);
 
-    if (element)
+    if (element && next_type != type)
       fprintf(out, "</%s>", element);
 
     if (url)
-      fputs("</a>", out);
+    {
+      const char *next_url = mmdGetURL(mmdGetNextSibling(node));
+
+      if (!next_url || strcmp(next_url, url))
+	fputs("</a>", out);
+    }
   }
 }
 
