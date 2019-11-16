@@ -4,6 +4,23 @@
  * Use the @link foo_float_function@ or @link foo_int_function@ functions
  * instead.  Pass @code NULL@ for "three" then there is no string to print.
  *
+ * - List item 1
+ * - List item 2 is longer and spans
+ *   two lines.
+ * - List item 3
+ *
+ * This is a code example:
+ *
+ * ```
+ * foo_void_function(1, 2.0f, "3");
+ *
+ * if (bar)
+ *   foo_void_function(2, 4.0f, "6");
+ * ```
+ *
+ * This is a paragraph following the code example with `code`, *emphasized*,
+ * and **strongly emphasized** text.
+ *
  * @deprecated@
  */
 

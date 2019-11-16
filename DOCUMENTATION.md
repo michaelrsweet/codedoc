@@ -173,6 +173,42 @@ directive strings:
   documentation, e.g. `@since libexample 1.1@`.
 
 
+Markdown in Comments
+--------------------
+
+Comments can use a small subset of markdown inline formatting characters:
+
+- "\`code\`": formats the text as code
+- "\*emphasized\*": emphasizes the text (usually italics)
+- "\*\*strong\*\*": strongly emphasizes the text (usually boldface)
+
+In addition, example code can be surrounded by lines containing "\`\`\`":
+
+```
+/*
+ * Example code:
+ *
+ * ```
+ * foo = get_foo() + get_baz();
+ * bar = get_bar() / foo;
+ * ```
+ */
+```
+
+and bulleted lists can be provided using a leading hyphen:
+
+```
+/*
+ * Example list:
+ *
+ * - One fish
+ * - Two fish
+ * - Red fish
+ * - Blue fish
+ */
+```
+
+
 EPUB and HTML Stylesheets
 =========================
 

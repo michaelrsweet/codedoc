@@ -4024,7 +4024,8 @@ write_description(
   char	text[10240],			/* Text for description */
         *start,				/* Start of code/link */
 	*ptr;				/* Pointer into text */
-  int	col;				/* Current column */
+  int	col,				/* Current column */
+	list = 0;			/* In a list? */
 
 
   if (!description)
@@ -4053,8 +4054,117 @@ write_description(
 
   for (col = 0; *ptr; ptr ++)
   {
-    if (*ptr == '@' &&
-        (!strncmp(ptr + 1, "deprecated@", 11) || !strncmp(ptr + 1, "exclude ", 8) || !strncmp(ptr + 1, "since ", 6)))
+    if (col == 0 && !strncmp(ptr, "- ", 2))
+    {
+     /*
+      * Bullet list item...
+      */
+
+      ptr ++;
+
+      if (element)
+      {
+	if (!list)
+	{
+          if (!strcmp(element, "p"))
+	    fputs("</p>", out);
+
+	  fputs("<ul>\n", out);
+	  list = 1;
+	}
+	else
+	  fputs("</li>\n", out);
+
+	fputs("<li>", out);
+      }
+      else
+      {
+        list = 1;
+        fputs(".IP \\(bu 5\n", out);
+      }
+    }
+    else if (col == 0 && !strncmp(ptr, "```\n", 4))
+    {
+     /*
+      * Code fence...
+      */
+
+      ptr += 4;
+
+      if (element)
+        fputs("<pre>\n", out);
+      else
+        fputs(".nf\n", out);
+
+      while (*ptr && (col != 0 || strncmp(ptr, "```\n", 4)))
+      {
+        if (col == 0 && !element)
+          fputs("    ", out);
+
+	if (*ptr == '\n')
+	  col = 0;
+	else
+	  col ++;
+
+        if (element)
+        {
+	  if (*ptr == '&')
+	    fputs("&amp;", out);
+	  else if (*ptr == '<')
+	    fputs("&lt;", out);
+	  else if (*ptr == '>')
+	    fputs("&gt;", out);
+	  else if (*ptr == '\"')
+	    fputs("&quot;", out);
+	  else if (*ptr & 128)
+	  {
+	   /*
+	    * Convert utf-8 to Unicode constant...
+	    */
+
+	    int	ch;			/* Unicode character */
+
+
+	    ch = *ptr & 255;
+
+	    if ((ch & 0xe0) == 0xc0)
+	    {
+	      ch = ((ch & 0x1f) << 6) | (ptr[1] & 0x3f);
+	      ptr ++;
+	    }
+	    else if ((ch & 0xf0) == 0xe0)
+	    {
+	      ch = ((((ch * 0x0f) << 6) | (ptr[1] & 0x3f)) << 6) | (ptr[2] & 0x3f);
+	      ptr += 2;
+	    }
+
+	    fprintf(out, "&#%d;", ch);
+	  }
+	  else
+	    putc(*ptr, out);
+	}
+	else
+	{
+	  if (*ptr == '\\' || (*ptr == '.' && col == 0))
+	    putc('\\', out);
+
+	  putc(*ptr, out);
+	}
+
+	ptr ++;
+      }
+
+      if (*ptr)
+        ptr += 4;
+
+      col = 0;
+
+      if (element)
+        fputs("</pre>\n", out);
+      else
+        fputs("\n.fi\n", out);
+    }
+    else if (*ptr == '@' && (!strncmp(ptr + 1, "deprecated@", 11) || !strncmp(ptr + 1, "exclude ", 8) || !strncmp(ptr + 1, "since ", 6)))
     {
       ptr ++;
       while (*ptr && *ptr != '@')
@@ -4072,7 +4182,8 @@ write_description(
         for (ptr += 5; isspace(*ptr & 255); ptr ++);
       }
 
-      for (start = ptr, ptr ++; *ptr && *ptr != end; ptr ++);
+      for (start = ptr, ptr ++; *ptr && *ptr != end; ptr ++)
+        col ++;
 
       if (*ptr)
         *ptr = '\0';
@@ -4104,7 +4215,8 @@ write_description(
     {
       for (ptr += 6; isspace(*ptr & 255); ptr ++);
 
-      for (start = ptr, ptr ++; *ptr && *ptr != '@'; ptr ++);
+      for (start = ptr, ptr ++; *ptr && *ptr != '@'; ptr ++)
+        col ++;
 
       if (*ptr)
         *ptr = '\0';
@@ -4118,8 +4230,51 @@ write_description(
       else
         fprintf(out, "\\fI%s\\fR", start);
     }
+    else if (*ptr == '*' && strchr(ptr + 1, '*'))
+    {
+     /*
+      * Emphasized text...
+      */
+
+      int strong = (ptr[1] == '*' && strstr(ptr + 2, "**") != NULL);
+
+      while (*ptr == '*')
+        ptr ++;
+
+      for (start = ptr; *ptr && *ptr != '*'; ptr ++)
+        col ++;
+
+      if (*ptr)
+      {
+        *ptr = '\0';
+
+        while (ptr[1] == '*')
+          ptr ++;
+      }
+      else
+        ptr --;
+
+      if (element && *element)
+      {
+        if (strong)
+          fprintf(out, "<strong>%s</strong>", start);
+        else
+          fprintf(out, "<em>%s</em>", start);
+      }
+      else if (element)
+        fputs(start, out);
+      else if (strong)
+        fprintf(out, "\\fB%s\\fR", start);
+      else
+        fprintf(out, "\\fI%s\\fR", start);
+    }
     else if (element)
     {
+      if (*ptr == '\n')
+        col = 0;
+      else
+        col ++;
+
       if (*ptr == '&')
         fputs("&amp;", out);
       else if (*ptr == '<')
@@ -4152,9 +4307,16 @@ write_description(
 
         fprintf(out, "&#%d;", ch);
       }
-      else if (*ptr == '\n' && ptr[1] == '\n' && ptr[2] && ptr[2] != '@')
+      else if (*ptr == '\n' && ptr[1] == '\n' && ptr[2] && ptr[2] != '@' && strncmp(ptr + 2, "- ", 2) && strncmp(ptr + 2, "```\n", 4))
       {
-        if (mode == OUTPUT_EPUB)
+        if (list)
+        {
+          list = 0;
+          fputs("</li>\n</ul>\n", out);
+          if (!strcmp(element, "p"))
+	    fprintf(out, "        <%s class=\"%s\">", element, summary ? "description" : "discussion");
+        }
+        else if (mode == OUTPUT_EPUB)
           fputs("<br />\n<br />\n", out);
         else
           fputs("<br>\n<br>\n", out);
@@ -4165,8 +4327,10 @@ write_description(
     }
     else if (*ptr == '\n' && ptr[1] == '\n' && ptr[2] && ptr[2] != '@')
     {
+      list = 0;
       fputs("\n.PP\n", out);
       ptr ++;
+      col = 0;
     }
     else
     {

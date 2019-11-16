@@ -16,6 +16,7 @@ utility.
 Changes in v3.3
 ---------------
 
+- Added basic markdown support in comments (Issue #6)
 - Added a `--language` option to override the default documentation language
   "en-US".
 - EPUB and HTML output now set the "generator" META content.
