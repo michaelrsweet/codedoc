@@ -41,44 +41,50 @@
  * Basic states for file parser...
  */
 
-#define STATE_NONE		0	/* No state - whitespace, etc. */
-#define STATE_PREPROCESSOR	1	/* Preprocessor directive */
-#define STATE_C_COMMENT		2	/* Inside a C comment */
-#define STATE_CXX_COMMENT	3	/* Inside a C++ comment */
-#define STATE_STRING		4	/* Inside a string constant */
-#define STATE_CHARACTER		5	/* Inside a character constant */
-#define STATE_IDENTIFIER	6	/* Inside a keyword/identifier */
+enum
+{
+  STATE_NONE,				/* No state - whitespace, etc. */
+  STATE_PREPROCESSOR,			/* Preprocessor directive */
+  STATE_C_COMMENT,			/* Inside a C comment */
+  STATE_CXX_COMMENT,			/* Inside a C++ comment */
+  STATE_STRING,				/* Inside a string constant */
+  STATE_CHARACTER,			/* Inside a character constant */
+  STATE_IDENTIFIER,			/* Inside a keyword/identifier */
+};
 
 
 /*
  * Output modes...
  */
 
-#define OUTPUT_NONE		0	/* No output */
-#define OUTPUT_HTML		1	/* Output HTML */
-#define OUTPUT_XML		2	/* Output XML */
-#define OUTPUT_MAN		3	/* Output nroff/man */
-#define OUTPUT_EPUB		4	/* Output EPUB (XHTML) */
+enum
+{
+  OUTPUT_NONE,				/* No output */
+  OUTPUT_HTML,				/* Output HTML */
+  OUTPUT_XML,				/* Output XML */
+  OUTPUT_MAN,				/* Output nroff/man */
+  OUTPUT_EPUB				/* Output EPUB (XHTML) */
+};
 
 
 /*
  * Special symbols...
  */
 
-#define COPYRIGHT_ASCII		"(c)"
-#define COPYRIGHT_ASCII_LEN	3
-#define COPYRIGHT_UTF8		"\xC2\xA9"
-#define COPYRIGHT_UTF8_LEN	2
+const char	*COPYRIGHT_ASCII = "(c)";
+const int	COPYRIGHT_ASCII_LEN = 3;
+const char	*COPYRIGHT_UTF8 = "\xC2\xA9";
+const int	COPYRIGHT_UTF8_LEN = 2;
 
-#define REGISTERED_ASCII	"(r)"
-#define REGISTERED_ASCII_LEN	3
-#define REGISTERED_UTF8		"\xC2\xAE"
-#define REGISTERED_UTF8_LEN	2
+const char	*REGISTERED_ASCII = "(r)";
+const int	REGISTERED_ASCII_LEN = 3;
+const char	*REGISTERED_UTF8 = "\xC2\xAE";
+const int	REGISTERED_UTF8_LEN = 2;
 
-#define TRADEMARK_ASCII		"(tm)"
-#define TRADEMARK_ASCII_LEN	4
-#define TRADEMARK_UTF8		"\xE2\x84\xA2"
-#define TRADEMARK_UTF8_LEN	3
+const char	*TRADEMARK_ASCII = "(tm)";
+const int	TRADEMARK_ASCII_LEN = 4;
+const char	*TRADEMARK_UTF8 = "\xE2\x84\xA2";
+const int	TRADEMARK_UTF8_LEN = 3;
 
 
 /*
@@ -187,12 +193,12 @@ static void		update_comment(mxml_node_t *parent, mxml_node_t *comment);
 static void		usage(const char *option);
 static void		write_description(FILE *out, int mode, mxml_node_t *description, const char *element, int summary);
 static void		write_element(FILE *out, mxml_node_t *doc, mxml_node_t *element, int mode);
-static void		write_epub(const char *epubfile, const char *section, const char *title, const char *author, const char *copyright, const char *docversion, const char *cssfile, const char *coverimage, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
+static void		write_epub(const char *epubfile, const char *section, const char *title, const char *author, const char *language, const char *copyright, const char *docversion, const char *cssfile, const char *coverimage, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
 static void		write_file(FILE *out, const char *file, int mode);
 static void		write_function(FILE *out, int mode, mxml_node_t *doc, mxml_node_t *function, int level);
-static void		write_html(const char *section, const char *title, const char *author, const char *copyright, const char *docversion, const char *cssfile, const char *coverimage, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
+static void		write_html(const char *section, const char *title, const char *author, const char *language, const char *copyright, const char *docversion, const char *cssfile, const char *coverimage, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
 static void		write_html_body(FILE *out, int mode, const char *bodyfile, mmd_t *body, mxml_node_t *doc);
-static void		write_html_head(FILE *out, int mode, const char *section, const char *title, const char *author, const char *copyright, const char *docversion, const char *cssfile);
+static void		write_html_head(FILE *out, int mode, const char *section, const char *title, const char *author, const char *language, const char *copyright, const char *docversion, const char *cssfile);
 static void		write_html_toc(FILE *out, const char *title, toc_t *toc, const char  *filename, const char  *target);
 static void		write_man(const char *man_name, const char *section, const char *title, const char *author, const char *copyright, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
 static void		write_scu(FILE *out, int mode, mxml_node_t *doc, mxml_node_t *scut);
@@ -214,6 +220,7 @@ main(int  argc,				/* I - Number of command-line args */
   mxml_node_t	*doc = NULL;		/* XML documentation tree */
   mxml_node_t	*codedoc = NULL;	/* codedoc node */
   const char	*author = NULL,		/* Author */
+		*language = NULL,	/* Language */
               	*copyright = NULL,	/* Copyright */
 		*cssfile = NULL,	/* CSS stylesheet file */
 		*docversion = NULL,	/* Documentation set version */
@@ -263,6 +270,18 @@ main(int  argc,				/* I - Number of command-line args */
       i ++;
       if (i < argc)
         author = argv[i];
+      else
+        usage(NULL);
+    }
+    else if (!strcmp(argv[i], "--body") && !bodyfile)
+    {
+     /*
+      * Set body file...
+      */
+
+      i ++;
+      if (i < argc)
+        bodyfile = argv[i];
       else
         usage(NULL);
     }
@@ -352,15 +371,15 @@ main(int  argc,				/* I - Number of command-line args */
       else
         usage(NULL);
     }
-    else if (!strcmp(argv[i], "--body") && !bodyfile)
+    else if (!strcmp(argv[i], "--language") && !language)
     {
      /*
-      * Set body file...
+      * Set language...
       */
 
       i ++;
       if (i < argc)
-        bodyfile = argv[i];
+        language = argv[i];
       else
         usage(NULL);
     }
@@ -550,6 +569,11 @@ main(int  argc,				/* I - Number of command-line args */
   if (!author)
     author = "Unknown";
 
+  if (!language)
+    language = mmdGetMetadata(body, "language");
+  if (!language)
+    language = "en-US";
+
   if (!copyright)
     copyright = mmdGetMetadata(body, "copyright");
   if (!copyright)
@@ -571,7 +595,7 @@ main(int  argc,				/* I - Number of command-line args */
         * Write EPUB (XHTML) documentation...
         */
 
-        write_epub(epubfile, section, title, author, copyright, docversion, cssfile, coverimage, headerfile, bodyfile, body, codedoc, footerfile);
+        write_epub(epubfile, section, title, author, language, copyright, docversion, cssfile, coverimage, headerfile, bodyfile, body, codedoc, footerfile);
         break;
 
     case OUTPUT_HTML :
@@ -579,7 +603,7 @@ main(int  argc,				/* I - Number of command-line args */
         * Write HTML documentation...
         */
 
-        write_html(section, title, author, copyright, docversion, cssfile, coverimage, headerfile, bodyfile, body, codedoc, footerfile);
+        write_html(section, title, author, language, copyright, docversion, cssfile, coverimage, headerfile, bodyfile, body, codedoc, footerfile);
         break;
 
     case OUTPUT_MAN :
@@ -4002,6 +4026,7 @@ usage(const char *option)		/* I - Unknown option */
   puts("    --epub filename.epub       Generate EPUB file");
   puts("    --footer filename          Set footer file (markdown supported)");
   puts("    --header filename          Set header file (markdown supported)");
+  puts("    --language ll[-CC]         Set ISO language/country/region code (EPUB, HTML)");
   puts("    --man name                 Generate man page");
   puts("    --no-output                Do not generate documentation file");
   puts("    --section \"section\"        Set section name");
@@ -4259,6 +4284,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
            const char  *section,	/* I - Section */
            const char  *title,		/* I - Title */
            const char  *author,		/* I - Author */
+           const char  *language,	/* I - Language */
            const char  *copyright,	/* I - Copyright */
            const char  *docversion,	/* I - Document version */
            const char  *cssfile,	/* I - Stylesheet file */
@@ -4330,7 +4356,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   * Standard header...
   */
 
-  write_html_head(fp, OUTPUT_EPUB, section, title, author, copyright, docversion, cssfile);
+  write_html_head(fp, OUTPUT_EPUB, section, title, author, language, copyright, docversion, cssfile);
 
   if (coverimage)
     fputs("<p><img src=\"cover.png\" width=\"100%\" /></p>", fp);
@@ -4493,7 +4519,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
       mxmlNewOpaque(temp, get_iso_date(time(NULL)));
 
       temp = mxmlNewElement(metadata, "dc:language");
-      mxmlNewOpaque(temp, "en-US"); /* TODO: Make this settable */
+      mxmlNewOpaque(temp, language);
 
       temp = mxmlNewElement(metadata, "dc:rights");
       mxmlNewOpaque(temp, copyright);
@@ -4845,6 +4871,7 @@ static void
 write_html(const char  *section,	/* I - Section */
 	   const char  *title,		/* I - Title */
            const char  *author,		/* I - Author's name */
+           const char  *language,	/* I - Language */
            const char  *copyright,	/* I - Copyright string */
 	   const char  *docversion,	/* I - Documentation set version */
 	   const char  *cssfile,	/* I - Stylesheet file */
@@ -4868,7 +4895,7 @@ write_html(const char  *section,	/* I - Section */
   * Standard header...
   */
 
-  write_html_head(stdout, OUTPUT_HTML, section, title, author, copyright, docversion, cssfile);
+  write_html_head(stdout, OUTPUT_HTML, section, title, author, language, copyright, docversion, cssfile);
 
   puts("    <div class=\"header\">");
 
@@ -5247,18 +5274,19 @@ write_html_head(FILE       *out,	/* I - Output file */
                 const char *section,	/* I - Section */
                 const char *title,	/* I - Title */
                 const char *author,	/* I - Author's name */
+                const char *language,	/* I - Language */
                 const char *copyright,	/* I - Copyright string */
                 const char *docversion,	/* I - Document version string */
 		const char *cssfile)	/* I - Stylesheet */
 {
   if (mode == OUTPUT_EPUB)
-    fputs("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-          "<!DOCTYPE html>\n"
-          "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" "
-          "lang=\"en\">\n", out);
+    fprintf(out, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+		 "<!DOCTYPE html>\n"
+		 "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"%s\" "
+		 "lang=\"%s\">\n", language, language);
   else
-    fputs("<!DOCTYPE html>\n"
-          "<html>\n", out);
+    fprintf(out, "<!DOCTYPE html>\n"
+		 "<html lang=\"%s\">\n", language);
 
   if (section)
     fprintf(out, "<!-- SECTION: %s -->\n", section);
@@ -5273,11 +5301,12 @@ write_html_head(FILE       *out,	/* I - Output file */
     if (section)
       fprintf(out, "    <meta name=\"keywords\" content=\"%s\" />\n", section);
 
-    fputs("    <meta name=\"creator\" content=\"codedoc v" VERSION "\" />\n"
+    fputs("    <meta name=\"generator\" content=\"codedoc v" VERSION "\" />\n"
           "    <meta name=\"author\" content=\"", out);
     write_string(out, author, mode);
-    fputs("\" />\n"
-          "    <meta name=\"copyright\" content=\"", out);
+    fprintf(out, "\" />\n"
+		 "    <meta name=\"language\" content=\"%s\" />\n"
+		 "    <meta name=\"copyright\" content=\"", language);
     write_string(out, copyright, mode);
     fputs("\" />\n"
           "    <meta name=\"version\" content=\"", out);
@@ -5292,11 +5321,12 @@ write_html_head(FILE       *out,	/* I - Output file */
 
     fputs("    <meta http-equiv=\"Content-Type\" "
           "content=\"text/html;charset=utf-8\">\n"
-          "    <meta name=\"creator\" content=\"codedoc v" VERSION "\">\n"
+          "    <meta name=\"generator\" content=\"codedoc v" VERSION "\">\n"
           "    <meta name=\"author\" content=\"", out);
     write_string(out, author, mode);
-    fputs("\">\n"
-          "    <meta name=\"copyright\" content=\"", out);
+    fprintf(out, "\">\n"
+		 "    <meta name=\"language\" content=\"%s\">\n"
+		 "    <meta name=\"copyright\" content=\"", language);
     write_string(out, copyright, mode);
     fputs("\">\n"
           "    <meta name=\"version\" content=\"", out);
