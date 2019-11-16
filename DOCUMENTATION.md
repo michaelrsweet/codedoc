@@ -2,7 +2,7 @@
 title: How to Use the codedoc Utility
 author: Michael R Sweet
 copyright: Copyright © 2003-2019 by Michael R Sweet
-version: 3.2
+version: 3.3
 ...
 
 Introduction
@@ -94,6 +94,8 @@ generated documentation:
   file can be markdown, HTML, or man source
 - `--header filename`: Inserts the named file before the table of contents; the
   file can be markdown, HTML, or man source
+- `--language ll[-LOC]`: Sets the ISO language and locality codes; the default
+  is "en-US" for US English
 - `--section "{name,number}"`: Sets the section/category name (HTML and EPUB
   output) or section number (man page output)
 - `--title "title text'`: Sets the title text
