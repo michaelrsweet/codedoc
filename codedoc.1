@@ -8,7 +8,7 @@
 .\" Licensed under Apache License v2.0.  See the file "LICENSE" for more
 .\" information.
 .\"
-.TH codedoc 1 "codedoc" "2019-01-04" "Michael R Sweet"
+.TH codedoc 1 "codedoc" "2019-11-16" "Michael R Sweet"
 .SH NAME
 codedoc \- code documentation utility
 .SH SYNOPSIS
@@ -34,6 +34,8 @@ codedoc \- code documentation utility
 .I filename.{html,md}
 ] [ \-\-header
 .I filename.{html,md}
+] [ \-\-language
+.I ll[-LOC]
 ] [ \-\-section
 .I section
 ] [ \-\-title
@@ -88,6 +90,8 @@ codedoc \- code documentation utility
 .I filename.{html,md,xhtml}
 ] [ \-\-header
 .I filename.{html,md,xhtml}
+] [ \-\-language
+.I ll[-LOC]
 ] [ \-\-section
 .I section
 ] [ \-\-title
@@ -148,6 +152,11 @@ This file can be markdown, man, HTML, or XHTML source.
 \fB\-\-header \fIfilename\fR
 Inserts the specified file at the top of the output documentation.
 This file can be markdown, man, HTML, or XHTML source.
+.TP 5
+\fB\-\-language \fIll[-LOC]\fR
+Specifies the ISO language and locality codes of the output documentation.
+By convention the language code is lowercase followed optionally by a hyphen and the locality code (often a country code) in uppercase.
+The default is "en-US" for US English.
 .TP 5
 \fB\-\-man \fImanpage\fR
 Generated a man page instead of HTML documentation.

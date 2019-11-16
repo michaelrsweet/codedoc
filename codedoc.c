@@ -4016,6 +4016,7 @@ usage(const char *option)		/* I - Unknown option */
   puts("Usage: codedoc [options] [filename.xml] [source files] >filename.html");
   puts("       codedoc [options] [filename.xml] [source files] --epub filename.epub");
   puts("       codedoc [options] [filename.xml] [source files] --man name >name.3");
+  puts("");
   puts("Options:");
   puts("    --author \"name\"            Set author name");
   puts("    --body filename            Set body file (markdown supported)");
@@ -4026,7 +4027,7 @@ usage(const char *option)		/* I - Unknown option */
   puts("    --epub filename.epub       Generate EPUB file");
   puts("    --footer filename          Set footer file (markdown supported)");
   puts("    --header filename          Set header file (markdown supported)");
-  puts("    --language ll[-CC]         Set ISO language/country/region code (EPUB, HTML)");
+  puts("    --language ll[-LOC]        Set ISO language and locality code (EPUB, HTML)");
   puts("    --man name                 Generate man page");
   puts("    --no-output                Do not generate documentation file");
   puts("    --section \"section\"        Set section name");
