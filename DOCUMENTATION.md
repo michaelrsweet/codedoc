@@ -183,16 +183,20 @@ Comments can use a small subset of markdown inline formatting characters:
 - "\*\*strong\*\*": strongly emphasizes the text (usually boldface)
 - "\[text](url)": inserts a named hyperlink
 - "\<url>": inserts a hyperlink
+- "\\": escapes the character that follows
 
-In addition, example code can be surrounded by lines containing "\`\`\`":
+In addition, example code can be surrounded by lines containing "\`\`\`". Use
+a leading "|" to ensure that any indentation is not lost:
 
 ```
 /*
  * Example code:
  *
  * ```
- * foo = get_foo() + get_baz();
- * bar = get_bar() / foo;
+ * | foo = get_foo() + get_baz();
+ * | bar = get_bar() / foo;
+ * | if (bar > 42)
+ * |   do_waz();
  * ```
  */
 ```

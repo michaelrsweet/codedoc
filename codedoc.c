@@ -4101,10 +4101,16 @@ write_description(
         if (col == 0 && !element)
           fputs("    ", out);
 
+        if (col == 0 && *ptr == '|' && ptr[1])
+          ptr ++;
+
 	if (*ptr == '\n')
 	  col = 0;
 	else
 	  col ++;
+
+        if (*ptr == '\\' && ptr[1])
+          ptr ++;
 
         if (element)
         {
@@ -4335,6 +4341,9 @@ write_description(
       else
         col ++;
 
+      if (*ptr == '\\' && ptr[1])
+        ptr ++;
+
       if (*ptr == '&')
         fputs("&amp;", out);
       else if (*ptr == '<')
@@ -4350,7 +4359,6 @@ write_description(
         */
 
         int	ch;			/* Unicode character */
-
 
         ch = *ptr & 255;
 
@@ -4394,6 +4402,9 @@ write_description(
     }
     else
     {
+      if (*ptr == '\\' && ptr[1])
+        ptr ++;
+
       if (*ptr == '\\' || (*ptr == '.' && col == 0))
         putc('\\', out);
 

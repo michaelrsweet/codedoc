@@ -12,10 +12,10 @@
  * This is a code example:
  *
  * ```
- * foo_void_function(1, 2.0f, "3");
- *
- * if (bar)
- *   foo_void_function(2, 4.0f, "6");
+ * | foo_void_function(1, 2.0f, "3");
+ * |
+ * | if (bar)
+ * |   foo_void_function(2, 4.0f, "6");
  * ```
  *
  * This is a paragraph following the code example with `code`, *emphasized*,
