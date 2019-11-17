@@ -181,6 +181,8 @@ Comments can use a small subset of markdown inline formatting characters:
 - "\`code\`": formats the text as code
 - "\*emphasized\*": emphasizes the text (usually italics)
 - "\*\*strong\*\*": strongly emphasizes the text (usually boldface)
+- "\[text](url)": inserts a named hyperlink
+- "\<url>": inserts a hyperlink
 
 In addition, example code can be surrounded by lines containing "\`\`\`":
 

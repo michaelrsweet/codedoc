@@ -4268,6 +4268,66 @@ write_description(
       else
         fprintf(out, "\\fI%s\\fR", start);
     }
+    else if (*ptr == '[' && strstr(ptr + 1, "](") != NULL)
+    {
+     /*
+      * Link...
+      */
+
+      char	*url = strstr(ptr + 1, "]("),
+					/* Pointer to URL */
+		*urlend = strchr(url + 1, ')');
+					/* Pointer to end of URL */
+
+      if (!urlend)
+      {
+        putc('[', out);
+        continue;
+      }
+
+      start   = ptr + 1;
+      *url    = '\0';
+      url     += 2;
+      *urlend = '\0';
+
+      if (element)
+      {
+        fprintf(out, "<a href=\"%s\">", url);
+        write_string(out, start, mode);
+        fputs("</a>", out);
+      }
+      else
+      {
+        fprintf(out, "\n.URL %s %s\n", url, start);
+      }
+
+      ptr = urlend;
+    }
+    else if (*ptr == '<' && strchr(ptr + 1, '>') != NULL)
+    {
+     /*
+      * Autolink...
+      */
+
+      char	*urlend = strchr(ptr + 1, '>');
+					/* Pointer to end of URL */
+
+      start   = ptr + 1;
+      *urlend = '\0';
+
+      if (element)
+      {
+        fprintf(out, "<a href=\"%s\">", start);
+        write_string(out, start, mode);
+        fputs("</a>", out);
+      }
+      else
+      {
+        fprintf(out, "\n.URL %s %s\n", start, start);
+      }
+
+      ptr = urlend;
+    }
     else if (element)
     {
       if (*ptr == '\n')

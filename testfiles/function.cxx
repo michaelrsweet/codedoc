@@ -21,6 +21,10 @@
  * This is a paragraph following the code example with `code`, *emphasized*,
  * and **strongly emphasized** text.
  *
+ * <https://www.msweet.org/codedoc> is the home page.
+ *
+ * File bugs [here](https://github.com/michaelrsweet/codedoc/issues).
+ *
  * @deprecated@
  */
 
