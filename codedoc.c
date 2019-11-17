@@ -18,10 +18,13 @@
 #include "zipc.h"
 #include <time.h>
 #include <sys/stat.h>
-#ifndef _WIN32
+#ifdef _WIN32
+#  define gmtime_r(t,tm) gmtime_s(tm,t)
+#  define localtime_r(t,tm) localtime_s(tm,t)
+#else
 #  include <dirent.h>
 #  include <unistd.h>
-#endif /* !_WIN32 */
+#endif /* _WIN32 */
 
 
 /*
@@ -1754,13 +1757,14 @@ get_comment_info(
 static char *				/* O - ISO date/time string */
 get_iso_date(time_t t)			/* I - Time value */
 {
-  struct tm	*date;			/* UTC date/time */
+  struct tm	date;			/* UTC date/time */
   static char	buffer[100];		/* String buffer */
 
 
-  date = gmtime(&t);
+  gmtime_r(&t, &date);
 
-  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02dZ", date->tm_year + 1900, date->tm_mon + 1, date->tm_mday, date->tm_hour, date->tm_min, date->tm_sec);
+  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02dZ", date.tm_year + 1900, date.tm_mon + 1, date.tm_mday, date.tm_hour, date.tm_min, date.tm_sec);
+
   return (buffer);
 }
 
@@ -5776,7 +5780,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
   char		prefix;			/* Prefix character */
   const char	*source_date_epoch;	/* SOURCE_DATE_EPOCH environment variable */
   time_t	curtime;		/* Current time */
-  struct tm	*curdate;		/* Current date */
+  struct tm	curdate;		/* Current date */
   char		buffer[1024];		/* String buffer */
   int		whitespace;		/* Current whitespace value */
   const char	*string;		/* Current string value */
@@ -5799,8 +5803,8 @@ write_man(const char  *man_name,	/* I - Name of manpage */
   if ((source_date_epoch = getenv("SOURCE_DATE_EPOCH")) == NULL || (curtime = (time_t)strtol(source_date_epoch, NULL, 10)) <= 0)
     curtime = time(NULL);
 
-  curdate = localtime(&curtime);
-  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d", curdate->tm_year + 1900, curdate->tm_mon + 1, curdate->tm_mday);
+  localtime_r(&curtime, &curdate);
+  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d", curdate.tm_year + 1900, curdate.tm_mon + 1, curdate.tm_mday);
 
   printf(".TH %s %s \"%s\" \"%s\" \"%s\"\n", man_name, section ? section : "3",
          title ? title : "", buffer, title ? title : "");
