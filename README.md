@@ -1,4 +1,4 @@
-Codedoc v3.3
+Codedoc v3.4
 ============
 
 Codedoc is a general-purpose utility which scans HTML, markdown, C, and C++
@@ -13,9 +13,10 @@ Codedoc was originally bundled with the Mini-XML library as the `mxmldoc`
 utility.
 
 
-Changes in vCURRENT
--------------------
+Changes in v3.4
+---------------
 
+- Added support for C++ namespaces (Issue #7)
 - Silenced some warnings from the LGTM security scanner.
 
 

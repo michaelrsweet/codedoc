@@ -18,7 +18,6 @@
   <xsd:element name="enumeration" type="enumerationType"/>
   <xsd:element name="function" type="functionType"/>
   <xsd:element name="mxmldoc" type="mxmldocType"/>
-  <xsd:element name="namespace" type="namespaceType"/>
   <xsd:element name="returnvalue" type="returnvalueType"/>
   <xsd:element name="seealso" type="identifierList"/>
   <xsd:element name="struct" type="structType"/>
@@ -86,28 +85,11 @@
       <xsd:element ref="class"/>
       <xsd:element ref="enumeration"/>
       <xsd:element ref="function"/>
-      <xsd:element ref="namespace"/>
       <xsd:element ref="struct"/>
       <xsd:element ref="typedef"/>
       <xsd:element ref="union"/>
       <xsd:element ref="variable"/>
     </xsd:choice>
-  </xsd:complexType>
-
-  <xsd:complexType name="namespaceType">
-    <xsd:sequence>
-      <xsd:element ref="description" minOccurs="0" maxOccurs="1"/>
-      <xsd:choice minOccurs="0" maxOccurs="unbounded">
-	<xsd:element ref="class"/>
-	<xsd:element ref="enumeration"/>
-	<xsd:element ref="function"/>
-	<xsd:element ref="struct"/>
-	<xsd:element ref="typedef"/>
-	<xsd:element ref="union"/>
-	<xsd:element ref="variable"/>
-      </xsd:choice>
-    </xsd:sequence>
-    <xsd:attribute name="name" type="identifier" use="required"/>
   </xsd:complexType>
 
   <xsd:complexType name="returnvalueType">

@@ -185,7 +185,7 @@ static void		markdown_write_block(FILE *out, mmd_t *parent, int mode);
 static void		markdown_write_leaf(FILE *out, mmd_t *node, int mode);
 static mxml_node_t	*new_documentation(mxml_node_t **codedoc);
 static void		safe_strcpy(char *dst, const char *src);
-static int		scan_file(filebuf_t *file, mxml_node_t *doc);
+static int		scan_file(filebuf_t *file, mxml_node_t *doc, const char *nsname);
 static void		sort_node(mxml_node_t *tree, mxml_node_t *func);
 static int		stringbuf_append(stringbuf_t *buffer, int ch);
 static void		stringbuf_clear(stringbuf_t *buffer);
@@ -507,7 +507,7 @@ main(int  argc,				/* I - Number of command-line args */
 	  mxmlDelete(doc);
 	  return (1);
 	}
-	else if (!scan_file(&file, codedoc))
+	else if (!scan_file(&file, codedoc, NULL))
 	{
 	  fclose(file.fp);
 	  mxmlDelete(doc);
@@ -2361,11 +2361,13 @@ safe_strcpy(char       *dst,		/* I - Destination string */
 
 static int				/* O - 1 on success, 0 on error */
 scan_file(filebuf_t   *file,		/* I - File to scan */
-          mxml_node_t *tree)		/* I - Function tree */
+          mxml_node_t *tree,		/* I - Function tree */
+          const char  *nsname)		/* I - Namespace name */
 {
   int		state,			/* Current parser state */
 		braces,			/* Number of braces active */
-		parens;			/* Number of active parenthesis */
+		parens,			/* Number of active parenthesis */
+		tree_is_scu;		/* Is the tree a struct, class, or union? */
   int		ch;			/* Current character */
   stringbuf_t	buffer;			/* String buffer */
   const char	*scope;			/* Current variable/function scope */
@@ -2386,6 +2388,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
   int		whitespace;		/* Current whitespace value */
   const char	*string,		/* Current string value */
 		*next_string;		/* Next string value */
+  int		nskeyword = 0;		/* Namespace keyword seen? */
+  char		nsnamestr[1024] = "";	/* Namespace name string */
 #if DEBUG > 1
   mxml_node_t	*temp;			/* Temporary node */
   int		oldstate,		/* Previous state */
@@ -2403,7 +2407,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 #endif /* DEBUG > 1 */
 
 
-  DEBUG_printf("scan_file(file.filename=\"%s\", .fp=%p, tree=%p)\n", file->filename, file->fp, tree);
+  DEBUG_printf("scan_file(file.filename=\"%s\", .fp=%p, tree=%p, nsname=\"%s\")\n", file->filename, file->fp, tree, nsname);
 
  /*
   * Initialize the finite state machine...
@@ -2423,6 +2427,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
   typedefnode  = NULL;
   structclass  = NULL;
   fstructclass = NULL;
+  tree_is_scu  = !strcmp(mxmlGetElement(tree), "class") || !strcmp(mxmlGetElement(tree), "struct") || !strcmp(mxmlGetElement(tree), "union");
 
   if (!strcmp(mxmlGetElement(tree), "class"))
     scope = "private";
@@ -2493,6 +2498,19 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		break;
 
             case '{' :
+                if (nskeyword)
+                {
+                  if (!scan_file(file, tree, nsnamestr))
+		  {
+		    mxmlDelete(comment);
+		    return (0);
+		  }
+
+		  nskeyword    = 0;
+		  nsnamestr[0] = '\0';
+                  break;
+                }
+
                 string      = get_nth_text(type, 0, &whitespace);
                 next_string = get_nth_text(type, 1, NULL);
 
@@ -2563,7 +2581,13 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
                   if (next_string)
 		  {
-		    mxmlElementSetAttr(structclass, "name", next_string);
+		    if (nsname)
+		    {
+		      mxmlElementSetAttrf(structclass, "name", "%s::%s", nsname, next_string);
+		      mxmlSetText(get_nth_child(type, 1), 1, mxmlElementGetAttr(structclass, "name"));
+		    }
+		    else
+		      mxmlElementSetAttr(structclass, "name", next_string);
 		    sort_node(tree, structclass);
 		  }
 
@@ -2624,7 +2648,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  update_comment(structclass, mxmlGetLastChild(comment));
 		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
 
-                  if (!scan_file(file, structclass))
+                  if (!scan_file(file, structclass, nsname))
 		  {
 		    mxmlDelete(comment);
 		    return (0);
@@ -2659,7 +2683,14 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
                   if (next_string)
 		  {
-		    mxmlElementSetAttr(enumeration, "name", next_string);
+		    if (nsname)
+		    {
+		      mxmlElementSetAttrf(enumeration, "name", "%s::%s", nsname, next_string);
+		      mxmlSetText(get_nth_child(type, 1), 1, mxmlElementGetAttr(enumeration, "name"));
+		    }
+		    else
+		      mxmlElementSetAttr(enumeration, "name", next_string);
+
 		    sort_node(tree, enumeration);
 		  }
 
@@ -2697,7 +2728,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		}
 		else if (type && string && !strcmp(string, "extern"))
                 {
-                  if (!scan_file(file, tree))
+                  if (!scan_file(file, tree, nsname))
 		  {
 		    mxmlDelete(comment);
 		    return (0);
@@ -3429,6 +3460,17 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
             if (!braces)
 	    {
+	      if (!strcmp(str, "namespace"))
+	      {
+	        nskeyword = 1;
+	        break;
+	      }
+	      else if (nskeyword)
+	      {
+	        strlcpy(nsnamestr, str, sizeof(nsnamestr));
+	        break;
+	      }
+
 	      if (!type || !mxmlGetFirstChild(type))
 	      {
 		if (!strcmp(mxmlGetElement(tree), "class"))
@@ -3478,21 +3520,33 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	        function = mxmlNewElement(MXML_NO_PARENT, "function");
 		if ((ptr = strchr(str, ':')) != NULL && ptr[1] == ':')
 		{
+		  char name[1024];	/* Struct/class name */
+
 		  *ptr = '\0';
 		  ptr += 2;
 
-		  if ((fstructclass = mxmlFindElement(tree, tree, "class", "name", str, MXML_DESCEND_FIRST)) == NULL)
-		    fstructclass = mxmlFindElement(tree, tree, "struct", "name", str, MXML_DESCEND_FIRST);
+                  if (nsname)
+                    snprintf(name, sizeof(name), "%s::%s", nsname, str);
+                  else
+                    strlcpy(name, str, sizeof(name));
+
+                  DEBUG_printf("looking for struct or class '%s' under %p(%s)...\n", name, tree, mxmlGetElement(tree));
+		  if ((fstructclass = mxmlFindElement(tree, tree, "class", "name", name, MXML_DESCEND_FIRST)) == NULL)
+		    fstructclass = mxmlFindElement(tree, tree, "struct", "name", name, MXML_DESCEND_FIRST);
+                  DEBUG_printf("fstructclass=%p\n", fstructclass);
 		}
 		else
 		  ptr = str;
 
-		mxmlElementSetAttr(function, "name", ptr);
+                if (nsname && !fstructclass && !tree_is_scu)
+                  mxmlElementSetAttrf(function, "name", "%s::%s", nsname, ptr);
+                else
+		  mxmlElementSetAttr(function, "name", ptr);
 
 		if (scope)
 		  mxmlElementSetAttr(function, "scope", scope);
 
-                DEBUG_printf("function: %s\n", str);
+                DEBUG_printf("function: %s\n", mxmlElementGetAttr(function, "name"));
 		DEBUG_printf("    scope = %s\n", scope ? scope : "(null)");
 		DEBUG_printf("    comment = %p\n", comment);
 		DEBUG_printf("    child = (%p) %s\n", mxmlGetFirstChild(comment), get_nth_text(comment, 0, NULL));
@@ -3554,7 +3608,10 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		  if (typedefnode)
 		  {
-		    mxmlElementSetAttr(typedefnode, "name", str);
+		    if (nsname)
+		      mxmlElementSetAttrf(typedefnode, "name", "%s::%s", nsname, str);
+		    else
+		      mxmlElementSetAttr(typedefnode, "name", str);
 
                     sort_node(tree, typedefnode);
 		  }
@@ -3562,7 +3619,10 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  if (structclass && !mxmlElementGetAttr(structclass, "name"))
 		  {
 		    DEBUG_printf("setting struct/class name to \"%s\".\n", get_nth_text(type, -1, NULL));
-		    mxmlElementSetAttr(structclass, "name", str);
+		    if (nsname)
+		      mxmlElementSetAttrf(structclass, "name", "%s::%s", nsname, str);
+		    else
+		      mxmlElementSetAttr(structclass, "name", str);
 
 		    sort_node(tree, structclass);
 		    structclass = NULL;
@@ -3585,7 +3645,10 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
                   DEBUG_printf("Typedef: <<<< %s >>>\n", str);
 
 		  typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
-		  mxmlElementSetAttr(typedefnode, "name", str);
+		  if (nsname)
+		    mxmlElementSetAttrf(typedefnode, "name", "%s::%s", nsname, str);
+		  else
+		    mxmlElementSetAttr(typedefnode, "name", str);
 		  mxmlDelete(mxmlGetFirstChild(type));
 
                   sort_node(tree, typedefnode);
@@ -3618,7 +3681,10 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    break;
 		  }
 
-	          mxmlNewText(type, child != NULL && *string != '(' && *string != '*', str);
+		  if (nsname && !fstructclass && !tree_is_scu)
+		    mxmlNewTextf(type, child != NULL && *string != '(' && *string != '*', "%s::%s", nsname, str);
+		  else
+		    mxmlNewText(type, child != NULL && *string != '(' && *string != '*', str);
 
                   DEBUG_printf("Variable: <<<< %s >>>>\n", str);
                   DEBUG_printf("    scope = %s\n", scope ? scope : "(null)");
@@ -3647,7 +3713,10 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	      DEBUG_printf("Constant: <<<< %s >>>\n", str);
 
 	      constant = mxmlNewElement(MXML_NO_PARENT, "constant");
-	      mxmlElementSetAttr(constant, "name", str);
+	      if (nsname)
+	        mxmlElementSetAttrf(constant, "name", "%s::%s", nsname, str);
+	      else
+	        mxmlElementSetAttr(constant, "name", str);
 	      sort_node(enumeration, constant);
 	    }
 	    else if (type)

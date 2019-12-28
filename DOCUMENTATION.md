@@ -2,7 +2,7 @@
 title: How to Use the codedoc Utility
 author: Michael R Sweet
 copyright: Copyright © 2003-2019 by Michael R Sweet
-version: 3.3
+version: 3.4
 ...
 
 Introduction

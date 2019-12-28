@@ -1,10 +1,69 @@
-namespace bar {
+namespace MYNAMESPACE {
+
+typedef int simple_t;			/* Simple integer type */
+
+typedef struct data_s			/* Data structure */
+{
+  float	a;				/* Real number */
+  int	b;				/* Integer */
+
+  data_s(float f, int b);
+  ~data_s();
+
+} data_t;
+
+// 'data_s::data_s()' - Create a data_s structure.
+data_s::data_s(float f, // I - Value of foo
+               int   b) // I - Value of bar
+{
+  foo = f;
+  bar = b;
+}
+
+// 'data_s::~data_s()' - Destroy a data_s structure.
+data_s::~data_s()
+{
+}
+
+
+typedef enum list_e			/* List enumeration type */
+{
+  LIST_ONE,				/* One fish */
+  LIST_TWO,				/* Two fish */
+  LIST_RED,				/* Red fish */
+  LIST_BLUE,				/* Blue fish */
+} list_t;
+
+class data2_c : public database_c	// Data class derived from base
+{
+  float	a;				/* Real number */
+  int	b;				/* Integer */
+
+  public:
+
+  data2_c(float f, int b);
+  ~data2_c();
+}
+
+// 'data2_c::data2_c()' - Create a data2_c class.
+data2_c::data2_c(float f, // I - Value of foo
+                 int   b) // I - Value of bar
+{
+  foo = f;
+  bar = b;
+}
+
+// 'data2_c::~data2_c()' - Destroy a data2_c class.
+data2_c::~data2_c()
+{
+}
 
 /*
- * 'bar_void_function()' - Do foo with bar.
+ * 'void_function()' - Do foo with bar.
  *
- * Use the @link bar_float_function@ or @link bar_int_function@ functions
- * instead.  Pass @code NULL@ for "three" then there is no string to print.
+ * Use the @link MYNAMESPACE::float_function@ or
+ * @link MYNAMESPACE::int_function@ functions instead.  Pass @code NULL@ for
+ * "three" then there is no string to print.
  *
  * - List item 1
  * - List item 2 is longer and spans
@@ -14,10 +73,10 @@ namespace bar {
  * This is a code example:
  *
  * ```
- * | bar_void_function(1, 2.0f, "3");
+ * | MYNAMESPACE::void_function(1, 2.0f, "3");
  * |
  * | if (bar)
- * |   bar_void_function(2, 4.0f, "6");
+ * |   MYNAMESPACE::void_function(2, 4.0f, "6");
  * ```
  *
  * This is a paragraph following the code example with `code`, *emphasized*,
@@ -31,9 +90,9 @@ namespace bar {
  */
 
 void
-bar_void_function(int        one,	/* I - Integer */
-                  float      *two,	/* O - Real number */
-                  const char *three)	/* I - String */
+void_function(int        one,		/* I - Integer */
+	      float      *two,		/* O - Real number */
+	      const char *three)	/* I - String */
 {
   if (one)
   {
@@ -47,14 +106,14 @@ bar_void_function(int        one,	/* I - Integer */
 
 
 /*
- * 'bar_float_function()' - Do foo with bar.
+ * 'float_function()' - Do foo with bar.
  *
  * @since 1.2@
  */
 
 float					/* O - Real number */
-bar_float_function(int        one,	/* I - Integer */
-                   const char *two)	/* I - String */
+float_function(int        one,		/* I - Integer */
+               const char *two)		/* I - String */
 {
   if (one)
   {
@@ -68,13 +127,12 @@ bar_float_function(int        one,	/* I - Integer */
 
 
 /*
- * 'bar_default_string()' - Do something with a defaulted string arg.
+ * 'default_string()' - Do something with a defaulted string arg.
  */
 
 int					/* O - Integer value */
-bar_default_string(int one,		/* I - Integer */
-                   const char *two = "2")
-					/* I - String */
+default_string(int        one,		/* I - Integer */
+	       const char *two = "2")	/* I - String */
 {
   if (one)
   {
@@ -88,12 +146,12 @@ bar_default_string(int one,		/* I - Integer */
 
 
 /*
- * 'bar_default_int()' - Do something with a defaulted int arg.
+ * 'default_int()' - Do something with a defaulted int arg.
  */
 
 int					/* O - Integer value */
-bar_default_int(int one,		/* I - Integer */
-                int two = 2)		/* I - Integer */
+default_int(int one,			/* I - Integer */
+	    int two = 2)		/* I - Integer */
 {
   if (one)
   {
@@ -107,26 +165,26 @@ bar_default_int(int one,		/* I - Integer */
 
 
 /*
- * 'bar_void_func()' - Function taking no arguments.
+ * 'void_func()' - Function taking no arguments.
  */
 
 void
-bar_void_func(void)
+void_func(void)
 {
-  puts("bar_void_func()");
+  puts("MYNAMESPACE::void_func()");
 }
 
 
 /*
- * 'bar_private_func()' - Private function.
+ * 'private_func()' - Private function.
  *
  * @private@
  */
 
 void
-bar_private_func(void)
+private_func(void)
 {
-  puts("bar_private_func()");
+  puts("MYNAMESPACE::private_func()");
 }
 
 }

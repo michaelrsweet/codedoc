@@ -9,7 +9,7 @@
 # information.
 #
 
-VERSION	=	3.3
+VERSION	=	3.4
 prefix	=	$(DESTDIR)/usr/local
 includedir =	$(prefix)/include
 bindir	=	$(prefix)/bin
@@ -56,6 +56,7 @@ TESTOPTIONS	=	\
 			--footer README.md
 
 test:		codedoc
+	rm -f test.xml
 	./codedoc $(TESTOPTIONS) test.xml testfiles/*.cxx >test.html
 	./codedoc $(TESTOPTIONS) --man test test.xml >test.man
 	./codedoc $(TESTOPTIONS) --epub test.epub test.xml
