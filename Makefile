@@ -3,13 +3,13 @@
 #
 #     https://www.msweet.org/codedoc
 #
-# Copyright © 2003-2019 by Michael R Sweet.
+# Copyright © 2003-2020 by Michael R Sweet.
 #
 # Licensed under Apache License v2.0.  See the file "LICENSE" for more
 # information.
 #
 
-VERSION	=	3.4
+VERSION	=	3.5
 prefix	=	$(DESTDIR)/usr/local
 includedir =	$(prefix)/include
 bindir	=	$(prefix)/bin

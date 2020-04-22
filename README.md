@@ -1,4 +1,4 @@
-Codedoc v3.4
+Codedoc v3.5
 ============
 
 Codedoc is a general-purpose utility which scans HTML, markdown, C, and C++
@@ -11,6 +11,12 @@ complete.
 
 Codedoc was originally bundled with the Mini-XML library as the `mxmldoc`
 utility.
+
+
+Changes in v3.5
+---------------
+
+- Added support for C++ block comments.
 
 
 Changes in v3.4
@@ -108,7 +114,7 @@ The codedoc project page provides access to the Github issue tracking page:
 Legal Stuff
 -----------
 
-Copyright © 2003-2019 by Michael R Sweet
+Copyright © 2003-2020 by Michael R Sweet
 
 Codedoc is licensed under the Apache License Version 2.0.  See the files
 "LICENSE" and "NOTICE" for more information.

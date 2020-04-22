@@ -3,7 +3,7 @@
  *
  *     https://www.msweet.org/codedoc
  *
- * Copyright © 2003-2019 by Michael R Sweet.
+ * Copyright © 2003-2020 by Michael R Sweet.
  *
  * Licensed under Apache License v2.0.  See the file "LICENSE" for more
  * information.
@@ -3007,6 +3007,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	  {
 	    case '\n' :
 	        while ((ch = filebuf_getc(file)) != EOF)
+	        {
 		  if (ch == '*')
 		  {
 		    ch = filebuf_getc(file);
@@ -3145,6 +3146,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    stringbuf_append(&buffer, ch);
 		  else if (!isspace(ch & 255))
 		    break;
+		}
 
 		if (ch != EOF)
 		  filebuf_ungetc(file, ch);
@@ -3294,6 +3296,23 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
       case STATE_CXX_COMMENT :		/* Inside a C++ comment */
           if (ch == '\n')
 	  {
+	    if ((ch = filebuf_getc(file)) == '/')
+	    {
+	      if ((ch = filebuf_getc(file)) == '/')
+	      {
+		stringbuf_append(&buffer, '\n');
+
+                while ((ch = filebuf_getc(file)) == ' ');
+
+                filebuf_ungetc(file, ch);
+		break;
+	      }
+	      else
+		filebuf_ungetc(file, ch);
+	    }
+	    else
+	      filebuf_ungetc(file, ch);
+
 	    char *commstr = stringbuf_get(&buffer);
 
 	    state = STATE_NONE;
@@ -3973,6 +3992,15 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
     safe_strcpy(ptr, ptr + 1);
 
  /*
+  * Remove leading spaces...
+  */
+
+  for (ptr = s; *ptr && isspace(*ptr & 255); ptr ++);
+
+  if (ptr > s)
+    safe_strcpy(s, ptr);
+
+ /*
   * Update the comment...
   */
 
@@ -3984,10 +4012,12 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
     * Convert "'name()' - description" to "description".
     */
 
+    DEBUG_puts("    found quote");
     for (ptr ++; *ptr && *ptr != '\''; ptr ++);
 
     if (*ptr == '\'')
     {
+      DEBUG_printf("    comment after quote: %s\n", ptr + 1);
       ptr ++;
       while (isspace(*ptr & 255))
         ptr ++;
