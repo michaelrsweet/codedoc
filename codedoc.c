@@ -4013,12 +4013,12 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
     */
 
     DEBUG_puts("    found quote");
-    for (ptr ++; *ptr && *ptr != '\''; ptr ++);
+    for (ptr ++; *ptr && *ptr != '\'' && *ptr != '('; ptr ++);
 
-    if (*ptr == '\'')
+    if (*ptr == '(' && ptr[1] == ')' && ptr[2] == '\'')
     {
-      DEBUG_printf("    comment after quote: %s\n", ptr + 1);
-      ptr ++;
+      DEBUG_printf("    comment after quote: %s\n", ptr + 3);
+      ptr += 3;
       while (isspace(*ptr & 255))
         ptr ++;
 
