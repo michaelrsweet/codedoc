@@ -32,8 +32,8 @@
  */
 
 #ifdef DEBUG
-#  define DEBUG_printf(...) fprintf(stderr, __VA_ARGS__)
-#  define DEBUG_puts(s) fputs(s, stderr)
+#  define DEBUG_printf(...)     fprintf(stderr, __VA_ARGS__)
+#  define DEBUG_puts(s)         fputs(s, stderr)
 #else
 #  define DEBUG_printf(...)
 #  define DEBUG_puts(s)
