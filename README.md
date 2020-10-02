@@ -17,6 +17,9 @@ Changes in v3.5
 ---------------
 
 - Added support for C++ block comments.
+- Fixed support for function types.
+- No longer strip quoted text ('text') in comments unless the text ends with
+  '()'.
 
 
 Changes in v3.4

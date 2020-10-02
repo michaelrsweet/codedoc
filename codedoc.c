@@ -31,6 +31,7 @@
  * Debug macros...
  */
 
+//#define DEBUG 2
 #ifdef DEBUG
 #  define DEBUG_printf(...)     fprintf(stderr, __VA_ARGS__)
 #  define DEBUG_puts(s)         fputs(s, stderr)
@@ -1207,8 +1208,16 @@ filebuf_getc(filebuf_t *file)		/* I - File buffer */
 
   if (file->ch)
   {
-    ch       = file->ch;
-    file->ch = 0;
+    if (file->ch > 0x100)
+    {
+      ch       = (file->ch >> 8) & 255;
+      file->ch = file->ch & 255;
+    }
+    else
+    {
+      ch       = file->ch;
+      file->ch = 0;
+    }
 
     return (ch);
   }
@@ -2856,6 +2865,12 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    * Yes, add it!
 		    */
 
+#if 0
+                    const char *last = get_nth_text(node, -1, NULL);
+                    if (last && *last == '_' && (strstr(last, "_PUBLIC") != NULL || strstr(last, "_PRIVATE") != NULL))
+                      mxmlDelete(mxmlGetLastChild(node));
+#endif // 0
+
 		    typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
 
 		    for (node = get_nth_child(type, 1); node; node = mxmlGetNextSibling(node))
@@ -3308,7 +3323,9 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		break;
 	      }
 	      else
-		filebuf_ungetc(file, ch);
+	      {
+		filebuf_ungetc(file, ('/' << 8) | ch);
+	      }
 	    }
 	    else
 	      filebuf_ungetc(file, ch);
@@ -3463,7 +3480,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
           break;
 
       case STATE_IDENTIFIER :		/* Inside a keyword or identifier */
-	  if (isalnum(ch & 255) || ch == '_' || ch == '[' || ch == ']' || (ch == ',' && (parens > 1 || (type && !enumeration && !function))) || ch == ':' || ch == '.' || ch == '~')
+	  if (isalnum(ch & 255) || ch == '_' || ch == '[' || ch == ']' || (ch == ',' && (parens > 0 || (type && !enumeration && !function))) || ch == ':' || ch == '.' || ch == '~')
 	  {
 	    stringbuf_append(&buffer, ch);
 	  }
@@ -3617,11 +3634,11 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 		type = NULL;
 	      }
-              else if (mxmlGetFirstChild(type) && !function && (ch == ';' || ch == ','))
+              else if (mxmlGetFirstChild(type) && !function && parens == 0 && (ch == ';' || ch == ','))
 	      {
-	        DEBUG_printf("    got semicolon, typedefnode=%p, structclass=%p\n", typedefnode, structclass);
+	        DEBUG_printf("    got %s, typedefnode=%p, structclass=%p\n", ch == ';' ? "semicolon" : "comma", typedefnode, structclass);
 
-	        if (typedefnode || structclass)
+	        if ((typedefnode || structclass) && *str != '_')
 		{
                   DEBUG_printf("Typedef/struct/class: <<<< %s >>>>\n", str);
 
