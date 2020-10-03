@@ -310,6 +310,9 @@ h6 {
   margin-bottom: 0.5em;
   margin-top: 1.5em;
 }
+img.title {
+  width: 256px;
+}
 div.header h1, div.header p {
   text-align: center;
 }

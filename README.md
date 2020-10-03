@@ -19,6 +19,7 @@ Changes in v3.5
 - Added support for C++ block comments.
 - Fixed support for function types.
 - Fixed support for private typedef struct/class/union constructions.
+- Now use the "title" class for the cover image in HTML and EPUB output.
 - No longer strip quoted text ('text') in comments unless the text ends with
   '()'.
 

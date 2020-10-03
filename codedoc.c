@@ -4681,7 +4681,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   write_html_head(fp, OUTPUT_EPUB, section, title, author, language, copyright, docversion, cssfile);
 
   if (coverimage)
-    fputs("<p><img src=\"cover.png\" width=\"100%\" /></p>", fp);
+    fputs("<p><img class=\"title\" src=\"cover.png\" /></p>", fp);
 
  /*
   * Header...
@@ -5212,9 +5212,9 @@ write_html(const char  *section,	/* I - Section */
     else
       coverbase = coverimage;
 
-    fputs("      <p><img src=\"", stdout);
+    fputs("      <p><img class=\"title\" src=\"", stdout);
     write_string(stdout, coverbase, OUTPUT_HTML);
-    fputs("\" width=\"100%\"></p>\n", stdout);
+    fputs("\"></p>\n", stdout);
   }
 
  /*
@@ -5675,6 +5675,9 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "  font-size: 110%;\n"
 	  "  margin-bottom: 0.5em;\n"
 	  "  margin-top: 1.5em;\n"
+	  "}\n"
+	  "img.title {\n"
+	  "  width: 256px;\n"
 	  "}\n"
 	  "div.header h1, div.header p {\n"
 	  "  text-align: center;\n"
