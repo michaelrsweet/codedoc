@@ -18,6 +18,7 @@ Changes in v3.5
 
 - Added support for C++ block comments.
 - Fixed support for function types.
+- Fixed support for private typedef struct/class/union constructions.
 - No longer strip quoted text ('text') in comments unless the text ends with
   '()'.
 

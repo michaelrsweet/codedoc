@@ -3638,36 +3638,39 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	      {
 	        DEBUG_printf("    got %s, typedefnode=%p, structclass=%p\n", ch == ';' ? "semicolon" : "comma", typedefnode, structclass);
 
-	        if ((typedefnode || structclass) && *str != '_')
-		{
+	        if (typedefnode || structclass)
+	        {
                   DEBUG_printf("Typedef/struct/class: <<<< %s >>>>\n", str);
 
-		  if (typedefnode)
+	          if (*str != '_')
 		  {
-		    if (nsname)
-		      mxmlElementSetAttrf(typedefnode, "name", "%s::%s", nsname, str);
+		    if (typedefnode)
+		    {
+		      if (nsname)
+			mxmlElementSetAttrf(typedefnode, "name", "%s::%s", nsname, str);
+		      else
+			mxmlElementSetAttr(typedefnode, "name", str);
+
+		      sort_node(tree, typedefnode);
+		    }
+
+		    if (structclass && !mxmlElementGetAttr(structclass, "name"))
+		    {
+		      DEBUG_printf("setting struct/class name to \"%s\".\n", get_nth_text(type, -1, NULL));
+		      if (nsname)
+			mxmlElementSetAttrf(structclass, "name", "%s::%s", nsname, str);
+		      else
+			mxmlElementSetAttr(structclass, "name", str);
+
+		      sort_node(tree, structclass);
+		      structclass = NULL;
+		    }
+
+		    if (typedefnode)
+		      mxmlAdd(typedefnode, MXML_ADD_BEFORE, MXML_ADD_TO_PARENT, type);
 		    else
-		      mxmlElementSetAttr(typedefnode, "name", str);
-
-                    sort_node(tree, typedefnode);
+		      mxmlDelete(type);
 		  }
-
-		  if (structclass && !mxmlElementGetAttr(structclass, "name"))
-		  {
-		    DEBUG_printf("setting struct/class name to \"%s\".\n", get_nth_text(type, -1, NULL));
-		    if (nsname)
-		      mxmlElementSetAttrf(structclass, "name", "%s::%s", nsname, str);
-		    else
-		      mxmlElementSetAttr(structclass, "name", str);
-
-		    sort_node(tree, structclass);
-		    structclass = NULL;
-		  }
-
-		  if (typedefnode)
-		    mxmlAdd(typedefnode, MXML_ADD_BEFORE, MXML_ADD_TO_PARENT, type);
-                  else
-		    mxmlDelete(type);
 
 		  type        = NULL;
 		  typedefnode = NULL;
