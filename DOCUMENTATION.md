@@ -153,6 +153,9 @@ will be shown as:
 > The function connects to an Internet server that streams audio of
 > mathematical monks chanting the first 100 digits of PI.
 
+The first paragraph of a comment is used as the short description of an item.
+Any subsequent paragraphs are used as the detailed description of an item.
+
 
 @ Directives in Comments
 ------------------------
