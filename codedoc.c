@@ -4534,6 +4534,9 @@ write_description(
     }
   }
 
+  if (list)
+    fputs("</li>\n</ul>\n", out);
+
   if (element && *element)
   {
     if (summary < 0)
