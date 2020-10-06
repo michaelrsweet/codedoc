@@ -4536,8 +4536,7 @@ write_description(
 
   if (list)
     fputs("</li>\n</ul>\n", out);
-
-  if (element && *element)
+  else if (element && *element)
   {
     if (summary < 0)
       fprintf(out, "</%s>", element);
@@ -4676,9 +4675,6 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   */
 
   write_html_head(fp, OUTPUT_EPUB, section, title, author, language, copyright, docversion, cssfile);
-
-  if (coverimage)
-    fputs("<p><img class=\"title\" src=\"cover.png\" /></p>", fp);
 
  /*
   * Header...
@@ -5637,7 +5633,20 @@ write_html_head(FILE       *out,	/* I - Output file */
     * Use standard stylesheet...
     */
 
-    fputs("body, p, h1, h2, h3, h4, h5, h6 {\n"
+    fputs("body {\n"
+          "  background: white;\n"
+          "  color: black;\n"
+          "}\n"
+          "a {\n"
+          "  color: black;\n"
+          "}\n"
+          "a:link, a:visited {\n"
+          "  color: #00f;\n"
+          "}\n"
+          "a:link:hover, a:visited:hover, a:active {\n"
+          "  color: #c0c;\n"
+          "}\n"
+          "body, p, h1, h2, h3, h4, h5, h6 {\n"
 	  "  font-family: sans-serif;\n"
 	  "  line-height: 1.4;\n"
 	  "}\n"
@@ -5822,11 +5831,14 @@ write_html_head(FILE       *out,	/* I - Output file */
             "    background: black;\n"
             "    color: #ccc;\n"
             "  }\n"
+            "  a {\n"
+            "    color: #ccc;\n"
+            "  }\n"
             "  a:link, a:visited {\n"
             "    color: #66f;\n"
             "  }\n"
-            "  a:link:hover, a:active {\n"
-            "    color: #99f;\n"
+            "  a:link:hover, a:visited:hover, a:active {\n"
+            "    color: #f06;\n"
             "  }\n"
             "}\n", out);
   }

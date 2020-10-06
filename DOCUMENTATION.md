@@ -278,6 +278,19 @@ Default Stylesheet
 ------------------
 
 ```
+body {
+  background: white;
+  color: black;
+}
+a {
+  color: black;
+}
+a:link, a:visited {
+  color: #00f;
+}
+a:link:hover, a:visited:hover, a:active {
+  color: #c0c;
+}
 body, p, h1, h2, h3, h4, h5, h6 {
   font-family: sans-serif;
   line-height: 1.4;
@@ -467,11 +480,14 @@ Additional CSS for HTML Output
     background: black;
     color: #ccc;
   }
+  a {
+    color: #ccc;
+  }
   a:link, a:visited {
     color: #66f;
   }
-  a:link:hover, a:active {
-    color: #99f;
+  a:link:hover, a:visited:hover, a:active {
+    color: #f06;
   }
 }
 ```
