@@ -268,6 +268,7 @@ documentation:
 | struct       | A structure                      | `<hN class="struct">`      |
 | subcontents  | Second-level contents            | `<ul class="subcontents">` |
 | title        | A title                          | `<hN class="title">`       |
+|              | (title image)                    | `<img class="title">`      |
 | typedef      | A typedef                        | `<hN class="typedef">`     |
 | union        | A union                          | `<hN class="union">`       |
 | variable     | A global variable                | `<hN class="variable">`    |
@@ -333,7 +334,7 @@ div.contents, div.body, div.footer {
 }
 blockquote {
   border: solid thin gray;
-  box-shadow: 3px 3px 5px rgba(0,0,0,0.5);
+  box-shadow: 3px 3px 5px rgba(127,127,127,0.25);
   padding: 0px 10px;
   page-break-inside: avoid;
 }
@@ -343,7 +344,7 @@ p code, li code, p.code, pre, ul.code li {
   -webkit-hyphens: manual;
 }
 p.code, pre, ul.code li {
-  background: rgba(127,127,127,0.1);
+  background: rgba(127,127,127,0.25);
   border: thin dotted gray;
   padding: 10px;
   page-break-inside: avoid;
@@ -385,7 +386,7 @@ table {
   border-spacing: 0;
 }
 td {
-  border: solid 1px #666;
+  border: solid 1px gray;
   padding: 5px 10px;
   vertical-align: top;
 }
@@ -399,13 +400,13 @@ td.right {
   text-align: right;
 }
 th {
-  border-bottom: solid 2px #000;
+  border-bottom: solid 2px gray;
   padding: 1px 5px;
   text-align: center;
   vertical-align: bottom;
 }
-tr:nth-child(odd) {
-  background: rgba(127,127,127,0.1);
+tr:nth-child(even) {
+  background: rgba(127,127,127,0.25);
 }
 table.list {
   border-collapse: collapse;
@@ -426,6 +427,51 @@ table.list td {
   vertical-align: top;
 }
 h2.title, h3.title {
-  border-bottom: solid 2px black;
+  border-bottom: solid 2px gray;
+}
+```
+
+Additional CSS for HTML Output
+------------------------------
+
+```
+/* Show contents on left side */
+@media screen {
+  div.contents {
+    border-right: solid thin gray;
+    bottom: 0px;
+    box-shadow: 3px 3px 5px rgba(127,127,127,0.5);
+    left: 0px;
+    overflow: scroll;
+    padding: 1%;
+    position: fixed;
+    top: 0px;
+    width: 18%;
+  }
+  div.contents h2.title {
+    margin-top: 0px;
+  }
+  div.header, div.body, div.footer {
+    margin-left: 20%;
+    padding: 1% 2%;
+  }
+}
+@media print {
+  div.header {
+    padding-top: 33%;
+  }
+}
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: black;
+    color: #ccc;
+  }
+  a:link, a:visited {
+    color: #66f;
+  }
+  a:link:hover, a:active {
+    color: #99f;
+  }
 }
 ```
