@@ -442,6 +442,22 @@ table.list td {
 h2.title, h3.title {
   border-bottom: solid 2px gray;
 }
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: black;
+    color: #ccc;
+  }
+  a {
+    color: #ccc;
+  }
+  a:link, a:visited {
+    color: #66f;
+  }
+  a:link:hover, a:visited:hover, a:active {
+    color: #f06;
+  }
+}
 ```
 
 Additional CSS for HTML Output
@@ -472,22 +488,6 @@ Additional CSS for HTML Output
 @media print {
   div.header {
     padding-top: 33%;
-  }
-}
-/* Dark mode overrides */
-@media (prefers-color-scheme: dark) {
-  body {
-    background: black;
-    color: #ccc;
-  }
-  a {
-    color: #ccc;
-  }
-  a:link, a:visited {
-    color: #66f;
-  }
-  a:link:hover, a:visited:hover, a:active {
-    color: #f06;
   }
 }
 ```
