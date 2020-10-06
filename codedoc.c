@@ -5808,7 +5808,7 @@ write_html_head(FILE       *out,	/* I - Output file */
             "  }\n"
             "  div.header, div.body, div.footer {\n"
             "    margin-left: 20%;\n"
-            "    padding: 1%;\n"
+            "    padding: 1% 2%;\n"
             "  }\n"
             "}\n"
             "@media print {\n"
