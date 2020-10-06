@@ -5788,6 +5788,34 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "h2.title, h3.title {\n"
 	  "  border-bottom: solid 2px black;\n"
 	  "}\n", out);
+
+    if (mode == OUTPUT_HTML)
+      fputs("/* Show contents on left side */\n"
+            "@media screen {\n"
+            "  div.contents {\n"
+            "    border-right: solid thin gray;\n"
+            "    bottom: 0px;\n"
+            "    box-shadow: 3px 3px 5px rgba(0,0,0,0.5);\n"
+            "    left: 0px;\n"
+            "    overflow: scroll;\n"
+            "    padding: 1%;\n"
+            "    position: fixed;\n"
+            "    top: 0px;\n"
+            "    width: 18%;\n"
+            "  }\n"
+            "  div.contents h2.title {\n"
+            "    margin-top: 0px;\n"
+            "  }\n"
+            "  div.header, div.body, div.footer {\n"
+            "    margin-left: 20%;\n"
+            "    padding: 1%;\n"
+            "  }\n"
+            "}\n"
+            "@media print {\n"
+            "  div.header {\n"
+            "    padding-top: 33%;\n"
+            "  }\n"
+            "}\n", out);
   }
 
   if (mode == OUTPUT_EPUB)

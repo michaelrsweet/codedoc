@@ -21,6 +21,7 @@ Changes in v3.5
 - Fixed support for private typedef struct/class/union constructions.
 - Fixed support for markdown bullet lists.
 - Now use the "title" class for the cover image in HTML and EPUB output.
+- Now place the table of contents along the side for HTML output.
 - No longer strip quoted text ('text') in comments unless the text ends with
   '()'.
 
