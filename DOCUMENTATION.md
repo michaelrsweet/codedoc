@@ -281,6 +281,8 @@ Default Stylesheet
 body {
   background: white;
   color: black;
+  font-family: sans-serif;
+  font-size: 12pt;
 }
 a {
   color: black;
@@ -429,6 +431,7 @@ table.list th {
   border-bottom: none;
   border-right: 2px solid gray;
   font-family: monospace;
+  font-weight: normal;
   padding: 5px 10px 5px 2px;
   text-align: right;
   vertical-align: top;
@@ -464,12 +467,13 @@ Additional CSS for HTML Output
 ------------------------------
 
 ```
-/* Show contents on left side */
+/* Show contents on left side in web browser */
 @media screen {
   div.contents {
     border-right: solid thin gray;
     bottom: 0px;
     box-shadow: 3px 3px 5px rgba(127,127,127,0.5);
+    font-size: 10pt;
     left: 0px;
     overflow: scroll;
     padding: 1%;
@@ -485,6 +489,7 @@ Additional CSS for HTML Output
     padding: 1% 2%;
   }
 }
+/* Center title page content vertically */
 @media print {
   div.header {
     padding-top: 33%;
