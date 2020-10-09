@@ -468,7 +468,7 @@ Additional CSS for HTML Output
 
 ```
 /* Show contents on left side in web browser */
-@media screen {
+@media screen and (min-width: 800px) {
   div.contents {
     border-right: solid thin gray;
     bottom: 0px;

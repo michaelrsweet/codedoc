@@ -5819,7 +5819,7 @@ write_html_head(FILE       *out,	/* I - Output file */
 
     if (mode == OUTPUT_HTML)
       fputs("/* Show contents on left side in web browser */\n"
-            "@media screen {\n"
+            "@media screen and (min-width: 800px) {\n"
             "  div.contents {\n"
             "    border-right: solid thin gray;\n"
             "    bottom: 0px;\n"
