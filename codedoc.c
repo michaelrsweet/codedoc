@@ -6576,55 +6576,18 @@ write_string(FILE       *out,		/* I - Output file */
             fputs("&quot;", out);
           else if (!strncasecmp(s, COPYRIGHT_ASCII, COPYRIGHT_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[COPYRIGHT_ASCII_LEN] || isspace(s[COPYRIGHT_ASCII_LEN] & 255)))
           {
-            fputs("&#169;", out);
+            fputs(COPYRIGHT_UTF8, out);
             s += COPYRIGHT_ASCII_LEN - 1;
           }
           else if (!strncasecmp(s, REGISTERED_ASCII, REGISTERED_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[REGISTERED_ASCII_LEN] || isspace(s[REGISTERED_ASCII_LEN] & 255)))
           {
-            fputs("&#174;", out);
+            fputs(REGISTERED_UTF8, out);
             s += REGISTERED_ASCII_LEN - 1;
           }
           else if (!strncasecmp(s, TRADEMARK_ASCII, TRADEMARK_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[TRADEMARK_ASCII_LEN] || isspace(s[TRADEMARK_ASCII_LEN] & 255)))
           {
-	    fputs("&#8482;", out);
+	    fputs(TRADEMARK_UTF8, out);
             s += TRADEMARK_ASCII_LEN - 1;
-          }
-          else if (*s & 128)
-          {
-           /*
-            * Convert UTF-8 to Unicode constant...
-            */
-
-            int	ch;			/* Unicode character */
-
-            ch = *s & 255;
-
-            if ((ch & 0xe0) == 0xc0 && (s[1] & 0xc0) == 0x80)
-            {
-              ch = ((ch & 0x1f) << 6) | (s[1] & 0x3f);
-	      s ++;
-            }
-            else if ((ch & 0xf0) == 0xe0 && (s[1] & 0xc0) == 0x80 && (s[2] & 0xc0) == 0x80)
-            {
-              ch = ((((ch * 0x0f) << 6) | (s[1] & 0x3f)) << 6) | (s[2] & 0x3f);
-	      s += 2;
-            }
-            else if ((ch & 0xf8) == 0xf0 && (s[1] & 0xc0) == 0x80 && (s[2] & 0xc0) == 0x80 && (s[3] & 0xc0) == 0x80)
-            {
-              ch = ((((((ch * 0x0f) << 6) | (s[1] & 0x3f)) << 6) | (s[2] & 0x3f)) << 6) | (s[3] & 0x3f);
-	      s += 3;
-            }
-
-            if (ch == 0xa0 && mode != OUTPUT_EPUB)
-            {
-             /*
-              * Handle non-breaking space as-is...
-	      */
-
-              fputs("&#160;", out);
-            }
-            else
-              fprintf(out, "&#x%x;", ch);
           }
           else
             putc(*s, out);
