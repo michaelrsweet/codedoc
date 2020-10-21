@@ -4150,19 +4150,26 @@ write_description(
 
   get_text(description, text, sizeof(text));
 
-  ptr = strstr(text, "\n\n");
-
-  if (summary)
+  if (summary < 0)
   {
-    if (ptr)
-      *ptr = '\0';
+   /*
+    * When showing everything, point to the start of the description text...
+    */
 
     ptr = text;
   }
-  else if (summary >= 0 && (!ptr || !ptr[2]))
-    return;
-  else if (summary >= 0)
-    ptr += 2;
+  else
+  {
+    if ((ptr = strstr(text, "\n\n")) != NULL)
+      *ptr = '\0';
+
+    if (summary)
+      ptr = text;			/* Summary is the first paragraph */
+    else if (!ptr || !ptr[2])
+      return;				/* No long-form description */
+    else
+      ptr += 2;				/* Long-firm description after first */
+  }
 
   if (element && *element)
     fprintf(out, "        <%s class=\"%s\">", element, summary ? "description" : "discussion");
