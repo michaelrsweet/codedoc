@@ -21,6 +21,10 @@
  * This is a paragraph following the code example with `code`, *emphasized*,
  * and **strongly emphasized** text.
  *
+ * > Note: This is a block quote.  Block quotes can span multiple lines and
+ * > contain *emphasized*, **strongly emphasized**, and `code` text, along
+ * > with [links](https://www.example.com/).
+ *
  * <https://www.msweet.org/codedoc> is the home page.
  *
  * File bugs [here](https://github.com/michaelrsweet/codedoc/issues).

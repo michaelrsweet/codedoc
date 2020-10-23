@@ -1,5 +1,5 @@
 name: codedoc
-version: 3.5
+version: 3.6
 summary: Code documentation utility.
 description: |
   Codedoc is a documentation generator that scans the specified C and C++ source

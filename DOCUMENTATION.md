@@ -204,7 +204,7 @@ a leading "|" to ensure that any indentation is not lost:
  */
 ```
 
-and bulleted lists can be provided using a leading hyphen:
+Bulleted lists can be provided using a leading hyphen:
 
 ```
 /*
@@ -214,6 +214,17 @@ and bulleted lists can be provided using a leading hyphen:
  * - Two fish
  * - Red fish
  * - Blue fish
+ */
+```
+
+and block quotes can be provided using the ">" character:
+
+```
+/*
+ * Some sort of documentation...
+ *
+ * > Note: This is a block quote that is typically used for special
+ * > notes to the reader.
  */
 ```
 

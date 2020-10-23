@@ -16,6 +16,7 @@ utility.
 Changes in v3.6
 ---------------
 
+- Added support for markdown-style block quotes in comments.
 - Fixed a LGTM-detected bug in the description writing code.
 
 

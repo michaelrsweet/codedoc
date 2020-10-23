@@ -4142,7 +4142,8 @@ write_description(
         *start,				/* Start of code/link */
 	*ptr;				/* Pointer into text */
   int	col,				/* Current column */
-	list = 0;			/* In a list? */
+	list = 0,			/* In a list? */
+	bq = 0;				/* In a block quote? */
 
 
   if (!description)
@@ -4205,6 +4206,31 @@ write_description(
       {
         list = 1;
         fputs(".IP \\(bu 5\n", out);
+      }
+    }
+    else if (col == 0 && !strncmp(ptr, "> ", 2))
+    {
+     /*
+      * Block quote...
+      */
+
+      ptr ++;
+
+      if (element)
+      {
+	if (!bq)
+	{
+          if (!strcmp(element, "p"))
+	    fputs("</p>", out);
+
+	  fputs("<blockquote>\n", out);
+	  bq = 1;
+	}
+      }
+      else
+      {
+        bq = 1;
+        fputs(".IN 5\n", out);
       }
     }
     else if (col == 0 && !strncmp(ptr, "```\n", 4))
@@ -4461,7 +4487,14 @@ write_description(
     else if (element)
     {
       if (*ptr == '\n')
+      {
         col = 0;
+        if (bq && strncmp(ptr + 1, "> ", 2))
+        {
+          bq = 0;
+          fputs("</blockquote>",out);
+        }
+      }
       else
         col ++;
 
@@ -4535,7 +4568,14 @@ write_description(
       putc(*ptr, out);
 
       if (*ptr == '\n')
+      {
         col = 0;
+        if (bq && strncmp(ptr + 1, "> ", 2))
+        {
+          bq = 0;
+          fputs(".PP\n", out);
+        }
+      }
       else
         col ++;
     }
@@ -4543,6 +4583,8 @@ write_description(
 
   if (list)
     fputs("</li>\n</ul>\n", out);
+  else if (bq && element)
+    fputs("</blockquote>\n", out);
   else if (element && *element)
   {
     if (summary < 0)
@@ -5712,7 +5754,8 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "blockquote {\n"
 	  "  border: solid thin gray;\n"
 	  "  box-shadow: 3px 3px 5px rgba(127,127,127,0.25);\n"
-	  "  padding: 0px 10px;\n"
+	  "  margin: 1em 0;\n"
+	  "  padding: 10px;\n"
 	  "  page-break-inside: avoid;\n"
           "}\n"
 	  "p code, li code, p.code, pre, ul.code li {\n"
