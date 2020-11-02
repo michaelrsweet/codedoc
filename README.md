@@ -1,4 +1,4 @@
-Codedoc v3.5
+Codedoc v3.6
 ============
 
 Codedoc is a general-purpose utility which scans HTML, markdown, C, and C++
@@ -16,6 +16,8 @@ utility.
 Changes in v3.6
 ---------------
 
+- Added support for literal links (functions, types, etc.) using the "@@"
+  target.
 - Added support for markdown-style block quotes in comments.
 - Fixed a LGTM-detected bug in the description writing code.
 

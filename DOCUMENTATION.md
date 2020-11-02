@@ -101,6 +101,34 @@ generated documentation:
 - `--title "title text'`: Sets the title text
 
 
+Markdown Extensions
+-------------------
+
+Codedoc uses the [mmd](https://www.msweet.org/mmd) library for markdown which
+mostly conforms to the CommonMark version of markdown syntax with the following
+exceptions:
+
+- Embedded HTML markup and entities are explicitly not supported or allowed;
+  the reason for this is to better support different kinds of output from the
+  markdown "source", including XHTML, man, and `xml2rfc`.
+
+- Tabs are silently expanded to the markdown standard of four spaces since HTML
+  uses eight spaces per tab.
+
+- Some pathological nested link and inline style features supported by
+  CommonMark (`******Really Strong Text******`) are not supported.
+
+- Support for metadata as used by Jekyll and other web markdown solutions.
+
+- Support for "@" links which resolve to headings within the documentation.
+
+- Support for "@@" links which resolve to literal names such as functions and
+  types within the documentation.
+
+- Support for tables as used by the
+  [Github Flavored Markdown Spec](https://github.github.com/gfm).
+
+
 Annotating Your C/C++ Code
 ==========================
 

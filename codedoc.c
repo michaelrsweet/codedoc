@@ -2290,6 +2290,8 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
       {
 	if (!strcmp(url, "@"))
 	  fprintf(out, "<a href=\"#%s\"", markdown_anchor(text));
+	else if (!strcmp(url, "@@"))
+	  fprintf(out, "<a href=\"#%s\"", text);
 	else
 	  fprintf(out, "<a href=\"%s\"", url);
 
@@ -4434,6 +4436,7 @@ write_description(
 					/* Pointer to URL */
 		*urlend = strchr(url + 1, ')');
 					/* Pointer to end of URL */
+      char	anchor[256];		/* Anchor for @ and @@ links */
 
       if (!urlend)
       {
@@ -4445,6 +4448,19 @@ write_description(
       *url    = '\0';
       url     += 2;
       *urlend = '\0';
+
+      if (!strcmp(url, "@"))
+      {
+        // Support @ links to named headings...
+        snprintf(anchor, sizeof(anchor), "#%s", markdown_anchor(start));
+        url = anchor;
+      }
+      else if (!strcmp(url, "@@"))
+      {
+        // Support @@ links to named functions/types/etc...
+        snprintf(anchor, sizeof(anchor), "#%s", start);
+        url = anchor;
+      }
 
       if (element)
       {
