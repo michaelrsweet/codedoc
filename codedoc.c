@@ -3392,7 +3392,6 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		*/
 
 		mxmlDelete(typedefnode);
-		typedefnode = NULL;
 
 		if (structclass)
 		{
@@ -3426,6 +3425,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  update_comment(enumeration, mxmlNewOpaque(description, commstr));
 		}
               }
+
+	      typedefnode = NULL;
 	    }
 	    else if (strcmp(mxmlGetElement(tree), "codedoc") && !mxmlFindElement(tree, tree, "description", NULL, NULL, MXML_DESCEND_FIRST))
             {
@@ -3633,6 +3634,11 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
               else if (mxmlGetFirstChild(type) && !function && parens == 0 && (ch == ';' || ch == ','))
 	      {
 	        DEBUG_printf("    got %s, typedefnode=%p, structclass=%p\n", ch == ';' ? "semicolon" : "comma", typedefnode, structclass);
+#if DEBUG > 1
+		mxml_node_t *debugnode;
+		for (debugnode = mxmlGetFirstChild(type); debugnode; debugnode = mxmlGetNextSibling(debugnode))
+		  DEBUG_printf("    type child=%p (%s)\n", debugnode, mxmlGetText(debugnode, NULL));
+#endif // DEBUG > 1
 
 	        if (typedefnode || structclass)
 	        {
@@ -3677,7 +3683,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  * Simple typedef...
 		  */
 
-                  DEBUG_printf("Typedef: <<<< %s >>>\n", str);
+                  DEBUG_printf("Simple typedef: <<<< %s >>>\n", str);
 
 		  typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
 		  if (nsname)
@@ -3686,15 +3692,14 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		    mxmlElementSetAttr(typedefnode, "name", str);
 		  mxmlDelete(mxmlGetFirstChild(type));
 
-                  sort_node(tree, typedefnode);
+		  sort_node(tree, typedefnode);
 
-                  if (mxmlGetFirstChild(type))
-                  {
-                    clear_whitespace(mxmlGetFirstChild(type));
-                  }
+		  if (mxmlGetFirstChild(type))
+		    clear_whitespace(mxmlGetFirstChild(type));
 
 		  mxmlAdd(typedefnode, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, type);
 		  type = NULL;
+		  DEBUG_printf("    New typedefnode=%p\n", typedefnode);
 		}
 		else if (!parens)
 		{
@@ -3768,6 +3773,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
     {
       DEBUG_printf("    changed states from %s to %s on receipt of character '%c'...\n", states[oldstate], states[state], oldch);
       DEBUG_printf("    variable = %p\n", variable);
+      DEBUG_printf("    typedefnode = %p\n", typedefnode);
       if (type)
       {
         DEBUG_puts("    type =");
@@ -3819,10 +3825,20 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
   */
 
   if ((nodename = mxmlElementGetAttr(node, "name")) == NULL)
+  {
+#if DEBUG > 1
+    DEBUG_puts("        nodename not found.");
+#endif /* DEBUG > 1 */
     return;
+  }
 
   if (nodename[0] == '_')
+  {
+#if DEBUG > 1
+    DEBUG_puts("        nodename=private");
+#endif /* DEBUG > 1 */
     return;				/* Hide private names */
+  }
 
 #if DEBUG > 1
   DEBUG_printf("        nodename=%p (\"%s\")\n", nodename, nodename);
@@ -3871,9 +3887,21 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
   }
 
   if (temp)
+  {
+#if DEBUG > 1
+    DEBUG_printf("        adding \"%s\" before \"%s\"\n", nodename, tempname);
+#endif /* DEBUG > 1 */
+
     mxmlAdd(tree, MXML_ADD_BEFORE, temp, node);
+  }
   else
+  {
+#if DEBUG > 1
+    DEBUG_printf("        adding \"%s\" to the end\n", nodename);
+#endif /* DEBUG > 1 */
+
     mxmlAdd(tree, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, node);
+  }
 }
 
 

@@ -19,6 +19,8 @@ Changes in v3.6
 - Added support for literal links (functions, types, etc.) using the "@@"
   target.
 - Added support for markdown-style block quotes in comments.
+- Fixed some parsing issues for the public typedef - private struct design
+  pattern, resulting in undocumented typedefs.
 - Fixed a LGTM-detected bug in the description writing code.
 
 
