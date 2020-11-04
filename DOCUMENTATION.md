@@ -426,13 +426,7 @@ p.code, pre, ul.code li {
   border: thin dotted gray;
   padding: 10px;
   page-break-inside: avoid;
-}
-pre.numbered code {
-  counter-increment: line;
-}
-pre.numbered code:before {
-  color: gray;
-  content: counter(line) "  ";
+  white-space: pre-wrap;
 }
 a:link, a:visited {
   text-decoration: none;

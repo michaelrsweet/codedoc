@@ -6205,6 +6205,7 @@ write_html_head(FILE       *out,	/* I - Output file */
           "  border: thin dotted gray;\n"
           "  padding: 10px;\n"
 	  "  page-break-inside: avoid;\n"
+	  "  white-space: pre-wrap;\n"
 	  "}\n"
 	  "a:link, a:visited {\n"
 	  "  text-decoration: none;\n"
