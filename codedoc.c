@@ -1890,7 +1890,7 @@ highlight_c_string(FILE       *fp,	/* I  - Output file */
 	    start = s;
 	  }
 
-	  if (isdigit(*s & 255) || *s == '.')
+	  if (isdigit(*s & 255) || (*s == '.' && isdigit(s[1] & 255)))
 	  {
 	    *histate   = HIGHLIGHT_NUMBER;
 	    class_name = "number";
