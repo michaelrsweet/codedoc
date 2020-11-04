@@ -48,12 +48,12 @@ sanitizer:
 
 TESTOPTIONS	=	\
 			--author "Michael R Sweet" \
-			--body DOCUMENTATION.md \
+			--body testfiles/body.md \
 			--copyright "Copyright © 2003-2019 by Michael R Sweet" \
 			--coverimage codedoc-256.png \
 			--docversion $(VERSION) \
 			--title "Test Documentation" \
-			--footer README.md
+			--footer DOCUMENTATION.md
 
 test:		codedoc
 	rm -f test.xml

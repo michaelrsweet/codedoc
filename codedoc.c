@@ -72,6 +72,22 @@ enum
 
 
 /*
+ * Highlight states...
+ */
+
+enum
+{
+  HIGHLIGHT_NONE,			/* No highlighting, plain text */
+  HIGHLIGHT_COMMENT,			/* Comment text */
+  HIGHLIGHT_COMMENT1,			/* One-line comment text */
+  HIGHLIGHT_DIRECTIVE,			/* (Preprocessor) directive text */
+  HIGHLIGHT_NUMBER,			/* Number text */
+  HIGHLIGHT_RESERVED,			/* Reserved word text */
+  HIGHLIGHT_STRING			/* String literal text */
+};
+
+
+/*
  * Special symbols...
  */
 
@@ -172,13 +188,15 @@ static int		filebuf_open(filebuf_t *file, const char *filename);
 static void		filebuf_ungetc(filebuf_t *file, int ch);
 static mxml_node_t	*find_public(mxml_node_t *node, mxml_node_t *top, const char *element, const char *name, int mode);
 static void		free_toc(toc_t *toc);
-static char		*html_gets(FILE *fp, char *fragment, size_t fragsize);
-static void		html_unescape(char *s);
 static char		*get_comment_info(mxml_node_t *description);
 static char		*get_iso_date(time_t t);
 static mxml_node_t	*get_nth_child(mxml_node_t *node, int idx);
 static const char	*get_nth_text(mxml_node_t *node, int idx, int *whitespace);
 static char		*get_text(mxml_node_t *node, char *buffer, int buflen);
+static void		highlight_c_string(FILE *fp, const char *s, int *histate);
+static int		highlight_compare(const char **a, const char **b);
+static char		*html_gets(FILE *fp, char *fragment, size_t fragsize);
+static void		html_unescape(char *s);
 static int		is_markdown(const char *filename);
 static mxml_type_t	load_cb(mxml_node_t *node);
 static const char	*markdown_anchor(const char *text);
@@ -206,7 +224,7 @@ static void		write_html_head(FILE *out, int mode, const char *section, const cha
 static void		write_html_toc(FILE *out, const char *title, toc_t *toc, const char  *filename, const char  *target);
 static void		write_man(const char *man_name, const char *section, const char *title, const char *author, const char *copyright, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
 static void		write_scu(FILE *out, int mode, mxml_node_t *doc, mxml_node_t *scut);
-static void		write_string(FILE *out, const char *s, int mode);
+static void		write_string(FILE *out, const char *s, int mode, int len);
 static const char	*ws_cb(mxml_node_t *node, int where);
 
 
@@ -1493,6 +1511,507 @@ free_toc(toc_t *toc)			/* I - Table of contents */
 
 
 /*
+ * 'get_comment_info()' - Get info from comment.
+ */
+
+static char *				/* O - Info from comment */
+get_comment_info(
+    mxml_node_t *description)		/* I - Description node */
+{
+  char		text[10240],		/* Description text */
+		since[255],		/* @since value */
+		*ptr;			/* Pointer into text */
+  static char	info[1024];		/* Info string */
+
+
+  if (!description)
+    return ("");
+
+  get_text(description, text, sizeof(text));
+
+  for (ptr = strchr(text, '@'); ptr; ptr = strchr(ptr + 1, '@'))
+  {
+    if (!strncmp(ptr, "@deprecated@", 12))
+      return ("<span class=\"info\">&#160;DEPRECATED&#160;</span>");
+    else if (!strncmp(ptr, "@since ", 7))
+    {
+      strlcpy(since, ptr + 7, sizeof(since));
+
+      if ((ptr = strchr(since, '@')) != NULL)
+        *ptr = '\0';
+
+      snprintf(info, sizeof(info), "<span class=\"info\">&#160;%s&#160;</span>", since);
+      return (info);
+    }
+  }
+
+  return ("");
+}
+
+
+/*
+ * 'get_iso_date()' - Get an ISO-formatted date/time string.
+ */
+
+static char *				/* O - ISO date/time string */
+get_iso_date(time_t t)			/* I - Time value */
+{
+  struct tm	date;			/* UTC date/time */
+  static char	buffer[100];		/* String buffer */
+
+
+  gmtime_r(&t, &date);
+
+  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02dZ", date.tm_year + 1900, date.tm_mon + 1, date.tm_mday, date.tm_hour, date.tm_min, date.tm_sec);
+
+  return (buffer);
+}
+
+
+/*
+ * 'get_nth_child()' - Get the Nth child node.
+ */
+
+static mxml_node_t *			/* O - Child node or NULL */
+get_nth_child(mxml_node_t *node,	/* I - Parent node */
+              int         idx)		/* I - Child node index (negative to index from end) */
+{
+  if (idx < 0)
+  {
+    for (node = mxmlGetLastChild(node); node && idx < -1; idx ++)
+      node = mxmlGetPrevSibling(node);
+  }
+  else
+  {
+    for (node = mxmlGetFirstChild(node); node && idx > 0; idx --)
+      node = mxmlGetNextSibling(node);
+  }
+
+  return (node);
+}
+
+
+/*
+ * 'get_nth_text()' - Get the text string from the Nth child node.
+ */
+
+static const char *			/* O - String value or NULL */
+get_nth_text(mxml_node_t *node,		/* I - Parent node */
+             int         idx,		/* I - Child node index (negative to index from end) */
+             int         *whitespace)	/* O - Whitespace value (NULL for don't care) */
+{
+  return (mxmlGetText(get_nth_child(node, idx), whitespace));
+}
+
+
+/*
+ * 'get_text()' - Get the text for a node.
+ */
+
+static char *				/* O - Text in node */
+get_text(mxml_node_t *node,		/* I - Node to get */
+         char        *buffer,		/* I - Buffer */
+	 int         buflen)		/* I - Size of buffer */
+{
+  char		*ptr,			/* Pointer into buffer */
+		*end;			/* End of buffer */
+  size_t	len;			/* Length of node */
+  mxml_node_t	*current;		/* Current node */
+
+
+  ptr = buffer;
+  end = buffer + buflen - 1;
+
+  for (current = mxmlGetFirstChild(node); current && ptr < end; current = mxmlGetNextSibling(current))
+  {
+    mxml_type_t type = mxmlGetType(current);
+
+    if (type == MXML_TEXT)
+    {
+      int whitespace;
+      const char *string = mxmlGetText(current, &whitespace);
+
+      if (whitespace)
+        *ptr++ = ' ';
+
+      len = strlen(string);
+      if (len > (size_t)(end - ptr))
+        len = (size_t)(end - ptr);
+
+      memcpy(ptr, string, len);
+      ptr += len;
+    }
+    else if (type == MXML_OPAQUE)
+    {
+      const char *opaque = mxmlGetOpaque(current);
+
+      len = strlen(opaque);
+      if (len > (size_t)(end - ptr))
+        len = (size_t)(end - ptr);
+
+      memcpy(ptr, opaque, len);
+      ptr += len;
+    }
+  }
+
+  *ptr = '\0';
+
+  return (buffer);
+}
+
+
+/*
+ * 'highlight_c_string()' - Output a string of C code, highlighting it as needed.
+ */
+
+static void
+highlight_c_string(FILE       *fp,	/* I  - Output file */
+                   const char *s,	/* I  - String */
+                   int        *histate)	/* IO - Highlighting state */
+{
+  const char	*start = s,		/* Start of code to highlight */
+		*class_name = (*histate == HIGHLIGHT_COMMENT) ? "comment" : NULL;
+					/* Class name for current fragment */
+  char		keyword[32],		/* Current keyword */
+		*keyptr = keyword;	/* Pointer into keyword */
+  static const char * const words[] =	/* Reserved words */
+  {
+    "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break",
+    "case", "catch", "char", "class", "compl", "const", "const_cast",
+    "continue", "default", "delete", "do", "double", "dynamic_cast",
+    "else", "enum", "explicit", "extern", "false", "float", "for",
+    "friend", "goto", "if", "inline", "int", "long", "mutable",
+    "namespace", "new", "not", "not_eq", "operator", "or", "or_eq",
+    "private", "protected", "public", "register", "reinterpret_cast",
+    "return", "short", "signed", "sizeof", "static", "static_cast",
+    "struct", "switch", "template", "this", "throw", "true", "try",
+    "typedef", "typename", "union", "unsigned", "virtual", "void",
+    "volatile", "while", "xor", "xor_eq"
+  };
+
+
+  if (*histate == HIGHLIGHT_COMMENT)
+  {
+    if ((s = strstr(start, "*/")) != NULL)
+    {
+     /*
+      * Comment ends on this line...
+      */
+
+      s += 2;
+
+      fputs("<span class=\"comment\">", fp);
+      write_string(fp, start, OUTPUT_HTML, s - start);
+      fputs("</span>", fp);
+
+      start      = s;
+      *histate   = HIGHLIGHT_NONE;
+      class_name = NULL;
+    }
+    else
+    {
+     /*
+      * Comment continues beyond the current line...
+      */
+
+      s = start + strlen(start) - 1;
+    }
+  }
+  else if (*s == '#')
+  {
+   /*
+    * Preprocessor directive...
+    */
+
+    while (*s && *s != '\n')
+    {
+      if (!strncmp(s, "/*", 2) || !strncmp(s, "//", 2))
+        break;
+
+      s ++;
+    }
+
+    fputs("<span class=\"directive\">", fp);
+    write_string(fp, start, OUTPUT_HTML, s - start);
+    fputs("</span>", fp);
+
+    start = s;
+  }
+
+  while (*s && *s != '\n')
+  {
+    if (!strncmp(s, "/*", 2))
+    {
+     /*
+      * Start of a block comment...
+      */
+
+      if (s > start)
+      {
+       /*
+        * Output current fragment...
+        */
+
+	if (class_name)
+	{
+	  fprintf(fp, "<span class=\"%s\">", class_name);
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	  fputs("</span>", fp);
+	}
+	else
+	{
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	}
+
+	start = s;
+      }
+
+     /*
+      * At this point, "start" points to the start of the comment...
+      */
+
+      if ((s = strstr(start, "*/")) != NULL)
+      {
+       /*
+        * Comment ends on the current line...
+        */
+
+        s += 2;
+
+	fputs("<span class=\"comment\">", fp);
+	write_string(fp, start, OUTPUT_HTML, s - start);
+	fputs("</span>", fp);
+
+	start      = s;
+	*histate   = HIGHLIGHT_NONE;
+	class_name = NULL;
+      }
+      else
+      {
+       /*
+        * Comment continues to the next line...
+        */
+
+	s          = start + strlen(start) - 1;
+	*histate   = HIGHLIGHT_COMMENT;
+	class_name = "comment";
+	break;
+      }
+    }
+    else if (!strncmp(s, "//", 2))
+    {
+     /*
+      * Start of C++ comment...
+      */
+
+      if (s > start)
+      {
+       /*
+        * Output current fragment...
+        */
+
+	if (class_name)
+	{
+	  fprintf(fp, "<span class=\"%s\">", class_name);
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	  fputs("</span>", fp);
+	}
+	else
+	{
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	}
+
+	start = s;
+      }
+
+      s          = start + strlen(start) - 1;
+      *histate   = HIGHLIGHT_COMMENT1;
+      class_name = "comment";
+      break;
+    }
+    else if (*s == '\"' || *s == '\'')
+    {
+     /*
+      * String/character constant...
+      */
+
+      if (s > start)
+      {
+       /*
+        * Output current fragment...
+        */
+
+	if (class_name)
+	{
+	  fprintf(fp, "<span class=\"%s\">", class_name);
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	  fputs("</span>", fp);
+	}
+	else
+	{
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	}
+
+	start = s;
+      }
+
+      for (s = start + 1; *s && *s != *start; s ++)
+      {
+        if (*s == '\\' && s[1])
+          s ++;
+      }
+
+      if (*s == *start)
+        s ++;
+
+      fputs("<span class=\"string\">", fp);
+      write_string(fp, start, OUTPUT_HTML, s - start);
+      fputs("</span>", fp);
+
+      start = s;
+    }
+    else
+    {
+      if (isalnum(*s & 255) || *s == '_' || *s == '.')
+      {
+       /*
+        * Number or keyword...
+        */
+
+	if (*histate == HIGHLIGHT_NONE)
+	{
+	  if (s > start && *histate == HIGHLIGHT_NONE)
+	  {
+	   /*
+	    * End current fragment...
+	    */
+
+	    write_string(fp, start, OUTPUT_HTML, s - start);
+	    start = s;
+	  }
+
+	  if (isdigit(*s & 255) || *s == '.')
+	  {
+	    *histate   = HIGHLIGHT_NUMBER;
+	    class_name = "number";
+	  }
+	  else
+	  {
+	    *histate = HIGHLIGHT_RESERVED;
+	  }
+	}
+
+        if (*histate == HIGHLIGHT_RESERVED && keyptr < (keyword + sizeof(keyword) - 1))
+          *keyptr++ = *s;
+      }
+      else if (*histate == HIGHLIGHT_NUMBER)
+      {
+       /*
+        * End of number...
+        */
+
+	fprintf(fp, "<span class=\"%s\">", class_name);
+	write_string(fp, start, OUTPUT_HTML, s - start);
+	fputs("</span>", fp);
+
+	start      = s;
+	*histate   = HIGHLIGHT_NONE;
+	class_name = NULL;
+      }
+      else if (*histate == HIGHLIGHT_RESERVED)
+      {
+       /*
+        * End of reserved word?
+        */
+
+        *keyptr = '\0';
+        keyptr  = keyword;
+
+        if (bsearch(&keyptr, words, sizeof(words) / sizeof(words[0]), sizeof(const char *), (int (*)(const void *, const void *))highlight_compare))
+        {
+         /*
+          * Yes, reserved word...
+          */
+
+	  fputs("<span class=\"reserved\">", fp);
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	  fputs("</span>", fp);
+        }
+        else
+        {
+         /*
+          * Just some other text...
+          */
+
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+        }
+
+        start    = s;
+        *histate = HIGHLIGHT_NONE;
+      }
+
+      s ++;
+    }
+  }
+
+  if (s > start)
+  {
+    if (class_name)
+    {
+      fprintf(fp, "<span class=\"%s\">", class_name);
+      write_string(fp, start, OUTPUT_HTML, s - start);
+      fputs("</span>", fp);
+    }
+    else if (*histate == HIGHLIGHT_RESERVED)
+    {
+      *keyptr = '\0';
+      keyptr  = keyword;
+
+      if (bsearch(&keyptr, words, sizeof(words) / sizeof(words[0]), sizeof(const char *), (int (*)(const void *, const void *))highlight_compare))
+      {
+       /*
+	* Yes, reserved word...
+	*/
+
+	fputs("<span class=\"reserved\">", fp);
+	write_string(fp, start, OUTPUT_HTML, s - start);
+	fputs("</span>", fp);
+      }
+      else
+      {
+       /*
+	* Just some other text...
+	*/
+
+	write_string(fp, start, OUTPUT_HTML, s - start);
+      }
+    }
+    else
+    {
+      write_string(fp, start, OUTPUT_HTML, s - start);
+    }
+  }
+
+  if (*histate != HIGHLIGHT_COMMENT)
+    *histate = HIGHLIGHT_NONE;
+
+  putc('\n', fp);
+}
+
+
+/*
+ * 'highlight_compare()' - Compare two reserved words.
+ */
+
+static int				/* O - Result of comparison */
+highlight_compare(const char **a,	/* I - First word */
+                    const char **b)	/* I - Second word */
+{
+  return (strcmp(*a, *b));
+}
+
+
+/*
  * 'html_gets()' - Get a HTML fragment.
  *
  * Returns a HTML fragment like "<element attr='value'>", "some text", and
@@ -1721,156 +2240,6 @@ html_unescape(char *buffer)		/* I - Buffer */
 
 
 /*
- * 'get_comment_info()' - Get info from comment.
- */
-
-static char *				/* O - Info from comment */
-get_comment_info(
-    mxml_node_t *description)		/* I - Description node */
-{
-  char		text[10240],		/* Description text */
-		since[255],		/* @since value */
-		*ptr;			/* Pointer into text */
-  static char	info[1024];		/* Info string */
-
-
-  if (!description)
-    return ("");
-
-  get_text(description, text, sizeof(text));
-
-  for (ptr = strchr(text, '@'); ptr; ptr = strchr(ptr + 1, '@'))
-  {
-    if (!strncmp(ptr, "@deprecated@", 12))
-      return ("<span class=\"info\">&#160;DEPRECATED&#160;</span>");
-    else if (!strncmp(ptr, "@since ", 7))
-    {
-      strlcpy(since, ptr + 7, sizeof(since));
-
-      if ((ptr = strchr(since, '@')) != NULL)
-        *ptr = '\0';
-
-      snprintf(info, sizeof(info), "<span class=\"info\">&#160;%s&#160;</span>", since);
-      return (info);
-    }
-  }
-
-  return ("");
-}
-
-
-/*
- * 'get_iso_date()' - Get an ISO-formatted date/time string.
- */
-
-static char *				/* O - ISO date/time string */
-get_iso_date(time_t t)			/* I - Time value */
-{
-  struct tm	date;			/* UTC date/time */
-  static char	buffer[100];		/* String buffer */
-
-
-  gmtime_r(&t, &date);
-
-  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02dZ", date.tm_year + 1900, date.tm_mon + 1, date.tm_mday, date.tm_hour, date.tm_min, date.tm_sec);
-
-  return (buffer);
-}
-
-
-/*
- * 'get_nth_child()' - Get the Nth child node.
- */
-
-static mxml_node_t *			/* O - Child node or NULL */
-get_nth_child(mxml_node_t *node,	/* I - Parent node */
-              int         idx)		/* I - Child node index (negative to index from end) */
-{
-  if (idx < 0)
-  {
-    for (node = mxmlGetLastChild(node); node && idx < -1; idx ++)
-      node = mxmlGetPrevSibling(node);
-  }
-  else
-  {
-    for (node = mxmlGetFirstChild(node); node && idx > 0; idx --)
-      node = mxmlGetNextSibling(node);
-  }
-
-  return (node);
-}
-
-
-/*
- * 'get_nth_text()' - Get the text string from the Nth child node.
- */
-
-static const char *			/* O - String value or NULL */
-get_nth_text(mxml_node_t *node,		/* I - Parent node */
-             int         idx,		/* I - Child node index (negative to index from end) */
-             int         *whitespace)	/* O - Whitespace value (NULL for don't care) */
-{
-  return (mxmlGetText(get_nth_child(node, idx), whitespace));
-}
-
-
-/*
- * 'get_text()' - Get the text for a node.
- */
-
-static char *				/* O - Text in node */
-get_text(mxml_node_t *node,		/* I - Node to get */
-         char        *buffer,		/* I - Buffer */
-	 int         buflen)		/* I - Size of buffer */
-{
-  char		*ptr,			/* Pointer into buffer */
-		*end;			/* End of buffer */
-  size_t	len;			/* Length of node */
-  mxml_node_t	*current;		/* Current node */
-
-
-  ptr = buffer;
-  end = buffer + buflen - 1;
-
-  for (current = mxmlGetFirstChild(node); current && ptr < end; current = mxmlGetNextSibling(current))
-  {
-    mxml_type_t type = mxmlGetType(current);
-
-    if (type == MXML_TEXT)
-    {
-      int whitespace;
-      const char *string = mxmlGetText(current, &whitespace);
-
-      if (whitespace)
-        *ptr++ = ' ';
-
-      len = strlen(string);
-      if (len > (size_t)(end - ptr))
-        len = (size_t)(end - ptr);
-
-      memcpy(ptr, string, len);
-      ptr += len;
-    }
-    else if (type == MXML_OPAQUE)
-    {
-      const char *opaque = mxmlGetOpaque(current);
-
-      len = strlen(opaque);
-      if (len > (size_t)(end - ptr))
-        len = (size_t)(end - ptr);
-
-      memcpy(ptr, opaque, len);
-      ptr += len;
-    }
-  }
-
-  *ptr = '\0';
-
-  return (buffer);
-}
-
-
-/*
  * 'is_markdown()' - Determine whether a file is markdown text.
  */
 
@@ -1934,6 +2303,7 @@ markdown_write_block(FILE  *out,	/* I - Output file */
 {
   mmd_t		*node;			/* Current child node */
   mmd_type_t	type;			/* Node type */
+  int		histate;		/* Highlighting state */
 
 
   type = mmdGetType(parent);
@@ -1976,7 +2346,7 @@ markdown_write_block(FILE  *out,	/* I - Output file */
           for (node = mmdGetFirstChild(parent); node; node = mmdGetNextSibling(node))
           {
             fputs("    ", out);
-            write_string(out, mmdGetText(node), mode);
+            write_string(out, mmdGetText(node), mode, 0);
           }
           fputs(".fi\n", out);
           return;
@@ -2052,13 +2422,18 @@ markdown_write_block(FILE  *out,	/* I - Output file */
           break;
 
       case MMD_TYPE_CODE_BLOCK :
-	  if ((class_name = mmdGetExtra(parent)) != NULL)
+          if ((class_name = mmdGetExtra(parent)) != NULL)
 	    fprintf(out, "    <pre><code class=\"language-%s\">", class_name);
 	  else
 	    fputs("    <pre><code>", out);
 
-          for (node = mmdGetFirstChild(parent); node; node = mmdGetNextSibling(node))
-            write_string(out, mmdGetText(node), mode);
+          for (node = mmdGetFirstChild(parent), histate = HIGHLIGHT_NONE; node; node = mmdGetNextSibling(node))
+          {
+            if (class_name && (!strcmp(class_name, "c") || !strcmp(class_name, "cpp")))
+              highlight_c_string(out, mmdGetText(node), &histate);
+            else
+              write_string(out, mmdGetText(node), mode, 0);
+	  }
           fputs("</code></pre>\n", out);
           return;
 
@@ -2208,7 +2583,7 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
           break;
     }
 
-    write_string(out, text, mode);
+    write_string(out, text, mode, 0);
 
     if (suffix)
       fputs(suffix, out);
@@ -2244,9 +2619,9 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
 
       case MMD_TYPE_IMAGE :
           fputs("<img src=\"", out);
-          write_string(out, url, mode);
+          write_string(out, url, mode, 0);
           fputs("\" alt=\"", out);
-          write_string(out, text, mode);
+          write_string(out, text, mode, 0);
           if (mode == OUTPUT_EPUB)
             fputs("\" />", out);
           else
@@ -2298,7 +2673,7 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
 	if (title)
 	{
 	  fputs(" title=\"", out);
-	  write_string(out, title, mode);
+	  write_string(out, title, mode, 0);
 	  fputs("\">", out);
 	}
 	else
@@ -2309,7 +2684,7 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
     if (element && prev_type != type)
       fprintf(out, "<%s>", element);
 
-    write_string(out, text, mode);
+    write_string(out, text, mode, 0);
 
     if (element && next_type != type)
       fprintf(out, "</%s>", element);
@@ -4493,7 +4868,7 @@ write_description(
       if (element)
       {
         fprintf(out, "<a href=\"%s\">", url);
-        write_string(out, start, mode);
+        write_string(out, start, mode, 0);
         fputs("</a>", out);
       }
       else
@@ -4518,7 +4893,7 @@ write_description(
       if (element)
       {
         fprintf(out, "<a href=\"%s\">", start);
-        write_string(out, start, mode);
+        write_string(out, start, mode, 0);
         fputs("</a>", out);
       }
       else
@@ -4671,13 +5046,13 @@ write_element(FILE        *out,		/* I - Output file */
       if ((mode == OUTPUT_HTML || mode == OUTPUT_EPUB) && (mxmlFindElement(doc, doc, "class", "name", string, MXML_DESCEND) || mxmlFindElement(doc, doc, "enumeration", "name", string, MXML_DESCEND) || mxmlFindElement(doc, doc, "struct", "name", string, MXML_DESCEND) || mxmlFindElement(doc, doc, "typedef", "name", string, MXML_DESCEND) || mxmlFindElement(doc, doc, "union", "name", string, MXML_DESCEND)))
       {
         fputs("<a href=\"#", out);
-        write_string(out, string, mode);
+        write_string(out, string, mode, 0);
 	fputs("\">", out);
-        write_string(out, string, mode);
+        write_string(out, string, mode, 0);
 	fputs("</a>", out);
       }
       else
-        write_string(out, string, mode);
+        write_string(out, string, mode, 0);
     }
   }
 
@@ -4788,20 +5163,20 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
     */
 
     fputs("    <h1 class=\"title\">", fp);
-    write_string(fp, title, OUTPUT_EPUB);
+    write_string(fp, title, OUTPUT_EPUB, 0);
     fputs("</h1>\n", fp);
 
     if (author)
     {
       fputs("    <p>", fp);
-      write_string(fp, author, OUTPUT_EPUB);
+      write_string(fp, author, OUTPUT_EPUB, 0);
       fputs("</p>\n", fp);
     }
 
     if (copyright)
     {
       fputs("    <p>", fp);
-      write_string(fp, copyright, OUTPUT_EPUB);
+      write_string(fp, copyright, OUTPUT_EPUB, 0);
       fputs("</p>\n", fp);
     }
   }
@@ -5299,7 +5674,7 @@ write_html(const char  *section,	/* I - Section */
       coverbase = coverimage;
 
     fputs("      <p><img class=\"title\" src=\"", stdout);
-    write_string(stdout, coverbase, OUTPUT_HTML);
+    write_string(stdout, coverbase, OUTPUT_HTML, 0);
     fputs("\"></p>\n", stdout);
   }
 
@@ -5322,20 +5697,20 @@ write_html(const char  *section,	/* I - Section */
     */
 
     fputs("      <h1 class=\"title\">", stdout);
-    write_string(stdout, title, OUTPUT_HTML);
+    write_string(stdout, title, OUTPUT_HTML, 0);
     fputs("</h1>\n", stdout);
 
     if (author)
     {
       fputs("      <p>", stdout);
-      write_string(stdout, author, OUTPUT_HTML);
+      write_string(stdout, author, OUTPUT_HTML, 0);
       fputs("</p>\n", stdout);
     }
 
     if (copyright)
     {
       fputs("      <p>", stdout);
-      write_string(stdout, copyright, OUTPUT_HTML);
+      write_string(stdout, copyright, OUTPUT_HTML, 0);
       fputs("</p>\n", stdout);
     }
   }
@@ -5482,13 +5857,13 @@ write_html_body(
 	  if (find_public(doc, doc, "class", string, mode) || find_public(doc, doc, "enumeration", string, mode) || find_public(doc, doc, "struct", string, mode) || find_public(doc, doc, "typedef", string, mode) || find_public(doc, doc, "union", string, mode))
 	  {
             fputs("<a href=\"#", out);
-            write_string(out, string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML, 0);
 	    fputs("\">", out);
-            write_string(out, string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML, 0);
 	    fputs("</a>", out);
 	  }
 	  else
-            write_string(out, string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML, 0);
         }
       }
 
@@ -5515,13 +5890,13 @@ write_html_body(
 	  if (find_public(doc, doc, "class", string, mode) || find_public(doc, doc, "enumeration", string, mode) || find_public(doc, doc, "struct", string, mode) || find_public(doc, doc, "typedef", string, mode) || find_public(doc, doc, "union", string, mode))
 	  {
             fputs("<a href=\"#", out);
-            write_string(out, string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML, 0);
 	    fputs("\">", out);
-            write_string(out, string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML, 0);
 	    fputs("</a>", out);
 	  }
 	  else
-            write_string(out, string, OUTPUT_HTML);
+            write_string(out, string, OUTPUT_HTML, 0);
         }
 
         fputs(";\n", out);
@@ -5670,7 +6045,7 @@ write_html_head(FILE       *out,	/* I - Output file */
 
   fputs("  <head>\n"
         "    <title>", out);
-  write_string(out, title, mode);
+  write_string(out, title, mode, 0);
   fputs("</title>\n", out);
 
   if (mode == OUTPUT_EPUB)
@@ -5680,14 +6055,14 @@ write_html_head(FILE       *out,	/* I - Output file */
 
     fputs("    <meta name=\"generator\" content=\"codedoc v" VERSION "\" />\n"
           "    <meta name=\"author\" content=\"", out);
-    write_string(out, author, mode);
+    write_string(out, author, mode, 0);
     fprintf(out, "\" />\n"
 		 "    <meta name=\"language\" content=\"%s\" />\n"
 		 "    <meta name=\"copyright\" content=\"", language);
-    write_string(out, copyright, mode);
+    write_string(out, copyright, mode, 0);
     fputs("\" />\n"
           "    <meta name=\"version\" content=\"", out);
-    write_string(out, docversion, mode);
+    write_string(out, docversion, mode, 0);
     fputs("\" />\n"
           "    <style type=\"text/css\"><![CDATA[\n", out);
   }
@@ -5700,14 +6075,14 @@ write_html_head(FILE       *out,	/* I - Output file */
           "content=\"text/html;charset=utf-8\">\n"
           "    <meta name=\"generator\" content=\"codedoc v" VERSION "\">\n"
           "    <meta name=\"author\" content=\"", out);
-    write_string(out, author, mode);
+    write_string(out, author, mode, 0);
     fprintf(out, "\">\n"
 		 "    <meta name=\"language\" content=\"%s\">\n"
 		 "    <meta name=\"copyright\" content=\"", language);
-    write_string(out, copyright, mode);
+    write_string(out, copyright, mode, 0);
     fputs("\">\n"
           "    <meta name=\"version\" content=\"", out);
-    write_string(out, docversion, mode);
+    write_string(out, docversion, mode, 0);
     fputs("\">\n"
           "    <style type=\"text/css\"><!--\n", out);
   }
@@ -5912,6 +6287,22 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "h2.title, h3.title {\n"
 	  "  border-bottom: solid 2px gray;\n"
 	  "}\n"
+	  "/* Syntax highlighting */\n"
+	  "span.comment {\n"
+	  "  color: darkgreen;\n"
+	  "}\n"
+	  "span.directive {\n"
+	  "  color: purple;\n"
+	  "}\n"
+	  "span.number {\n"
+	  "  color: brown;\n"
+	  "}\n"
+	  "span.reserved {\n"
+	  "  color: darkcyan;\n"
+	  "}\n"
+	  "span.string {\n"
+	  "  color: magenta;\n"
+	  "}\n"
 	  "/* Dark mode overrides */\n"
 	  "@media (prefers-color-scheme: dark) {\n"
 	  "  body {\n"
@@ -6003,7 +6394,7 @@ write_html_toc(FILE        *out,	/* I - Output file */
   if (filename)
   {
     fprintf(out, "      <h1 class=\"title\"><a href=\"%s\"%s>", filename, targetattr);
-    write_string(out, title, OUTPUT_HTML);
+    write_string(out, title, OUTPUT_HTML, 0);
     fputs("</a></h1>\n", out);
   }
 
@@ -6023,7 +6414,7 @@ write_html_toc(FILE        *out,	/* I - Output file */
     }
 
     fprintf(out, "        %s<li><a href=\"%s#%s\"%s>", toc_level == 1 ? "" : "  ", filename ? filename : "", tentry->anchor, targetattr);
-    write_string(out, tentry->title, OUTPUT_HTML);
+    write_string(out, tentry->title, OUTPUT_HTML, 0);
 
     if ((i + 1) < toc->num_entries && tentry[1].level > toc_level)
       fputs("</a><ul class=\"subcontents\">\n", out);
@@ -6397,7 +6788,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 	  if (whitespace)
 	    putchar(' ');
 
-          write_string(stdout, string, OUTPUT_MAN);
+          write_string(stdout, string, OUTPUT_MAN, 0);
         }
       }
 
@@ -6416,7 +6807,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 	  if (whitespace)
 	    putchar(' ');
 
-          write_string(stdout, string, OUTPUT_MAN);
+          write_string(stdout, string, OUTPUT_MAN, 0);
         }
 
         puts(";");
@@ -6663,20 +7054,27 @@ write_scu(FILE        *out,	/* I - Output file */
 static void
 write_string(FILE       *out,		/* I - Output file */
              const char *s,		/* I - String to write */
-             int        mode)		/* I - Output mode */
+             int        mode,		/* I - Output mode */
+             int        len)		/* I - Length or offset */
 {
   const char	*start = s;		/* Start of string */
+  const char	*end;			/* End of string */
 
 
   if (!s)
     return;
+
+  if (len <= 0)
+    end = s + strlen(s) - len;
+  else
+    end = s + len;
 
   switch (mode)
   {
     case OUTPUT_EPUB :
     case OUTPUT_HTML :
     case OUTPUT_XML :
-        while (*s)
+        while (*s && s < end)
         {
           if (*s == '&')
             fputs("&amp;", out);
@@ -6709,7 +7107,7 @@ write_string(FILE       *out,		/* I - Output file */
         break;
 
     case OUTPUT_MAN :
-        while (*s)
+        while (*s && s < end)
         {
           if (!strncasecmp(s, COPYRIGHT_ASCII, COPYRIGHT_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[COPYRIGHT_ASCII_LEN] || isspace(s[COPYRIGHT_ASCII_LEN] & 255)))
           {

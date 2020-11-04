@@ -16,6 +16,7 @@ utility.
 Changes in v3.6
 ---------------
 
+- Added support for syntax highlighting of C and C++ code.
 - Added support for literal links (functions, types, etc.) using the "@@"
   target.
 - Added support for markdown-style block quotes in comments.

@@ -128,6 +128,9 @@ exceptions:
 - Support for `#widthNN` in image URLs to scale images to 25, 33, 50, 66, 75,
   and 100% width.
 
+- Support for the "c" and "cpp" languages for syntax highlighting in fenced
+  code text.
+
 - Support for tables as used by the
   [Github Flavored Markdown Spec](https://github.github.com/gfm).
 
@@ -424,6 +427,13 @@ p.code, pre, ul.code li {
   padding: 10px;
   page-break-inside: avoid;
 }
+pre.numbered code {
+  counter-increment: line;
+}
+pre.numbered code:before {
+  color: gray;
+  content: counter(line) "  ";
+}
 a:link, a:visited {
   text-decoration: none;
 }
@@ -504,6 +514,22 @@ table.list td {
 }
 h2.title, h3.title {
   border-bottom: solid 2px gray;
+}
+/* Syntax highlighting */
+span.comment {
+  color: darkgreen;
+}
+span.directive {
+  color: purple;
+}
+span.number {
+  color: orange;
+}
+span.reserved {
+  color: blue;
+}
+span.string {
+  color: magenta;
 }
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
