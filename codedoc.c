@@ -2536,9 +2536,8 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
   mmd_type_t	type,			/* Current leaf node type */
 		prev_type,		/* Previous leaf node type */
 		next_type;		/* Next leaf node type */
-  const char    *text,                  /* Text to write */
-                *url,                   /* URL to write */
-                *target;		/* URL target */
+  const char	*text,			/* Text to write */
+		*url;			/* URL to write */
 
 
   type = mmdGetType(node);
@@ -2623,7 +2622,7 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
           if (strncmp(url, "http://", 7) && strncmp(url, "https://", 8))
           {
            /*
-            * Local file so strip any directory or target info...
+            * Local file so strip any directory info...
             */
 
             const char *baseurl;	/* Base name of URL */
@@ -2633,10 +2632,7 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
             else
               baseurl = url;
 
-	    if ((target = strchr(baseurl, '#')) != NULL)
-	      write_string(out, baseurl, mode, target - baseurl);
-	    else
-	      write_string(out, baseurl, mode, 0);
+	    write_string(out, baseurl, mode, 0);
 	  }
 	  else
 	  {
