@@ -5326,14 +5326,17 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
       status |= zipcCopyFile(epub, oebpsname, filename, 0, 0);
     }
 
-    if ((next = mmdGetNextSibling(node)) == NULL)
+    if ((next = mmdGetFirstChild(node)) == NULL)
     {
-      next = mmdGetParent(node);
+      if ((next = mmdGetNextSibling(node)) == NULL)
+      {
+	next = mmdGetParent(node);
 
-      while (next && mmdGetNextSibling(next) == NULL)
-	next = mmdGetParent(next);
+	while (next && mmdGetNextSibling(next) == NULL)
+	  next = mmdGetParent(next);
 
-      next = mmdGetNextSibling(next);
+	next = mmdGetNextSibling(next);
+      }
     }
 
     node = next;
