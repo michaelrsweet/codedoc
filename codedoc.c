@@ -2537,7 +2537,8 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
 		prev_type,		/* Previous leaf node type */
 		next_type;		/* Next leaf node type */
   const char    *text,                  /* Text to write */
-                *url;                   /* URL to write */
+                *url,                   /* URL to write */
+                *target;		/* URL target */
 
 
   type = mmdGetType(node);
@@ -2619,7 +2620,32 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
 
       case MMD_TYPE_IMAGE :
           fputs("<img src=\"", out);
-          write_string(out, url, mode, 0);
+          if (strncmp(url, "http://", 7) && strncmp(url, "https://", 8))
+          {
+           /*
+            * Local file so strip any directory or target info...
+            */
+
+            const char *baseurl;	/* Base name of URL */
+
+            if ((baseurl = strrchr(url, '/')) != NULL)
+              baseurl ++;
+            else
+              baseurl = url;
+
+	    if ((target = strchr(baseurl, '#')) != NULL)
+	      write_string(out, baseurl, mode, target - baseurl);
+	    else
+	      write_string(out, baseurl, mode, 0);
+	  }
+	  else
+	  {
+	   /*
+	    * Remote URL so use as-is...
+	    */
+
+	    write_string(out, url, mode, 0);
+	  }
           fputs("\" alt=\"", out);
           write_string(out, text, mode, 0);
           if (mode == OUTPUT_EPUB)
@@ -5101,6 +5127,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   toc_t		*toc;			/* Table of contents */
   toc_entry_t	*tentry;		/* Current table of contents */
   int		toc_level;		/* Current table-of-contents level */
+  mmd_t		*node;			/* Current markdown node */
   static const char *mimetype =		/* mimetype file as a string */
 		"application/epub+zip";
   static const char *container_xml =	/* container.xml file as a string */
@@ -5262,11 +5289,55 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   unlink(xhtmlfile);
 
  /*
-  * Add the cover image, if specified...
+  * Add images...
   */
 
   if (coverimage)
     status |= zipcCopyFile(epub, "OEBPS/cover.png", coverimage, 0, 0);
+
+  node = mmdGetFirstChild(body);
+
+  while (node)
+  {
+    mmd_t	*next;			/* Next node */
+    const char	*url = mmdGetURL(node);	/* URL for node */
+
+    if (mmdGetType(node) == MMD_TYPE_IMAGE && url && strncmp(url, "http://", 7) && strncmp(url, "https://", 8))
+    {
+      // Image is a local file reference, strip any "#target" and copy it...
+      char	filename[1024],		/* Filename */
+		*target,		/* Pointer to target, if any */
+		*name,			/* Base name of file */
+		oebpsname[1024];	/* Filename in EPUB file */
+
+      strncpy(filename, url, sizeof(filename) - 1);
+      filename[sizeof(filename) - 1] = '\0';
+
+      if ((target = strchr(filename, '#')) != NULL)
+        *target = '\0';
+
+      if ((name = strrchr(filename, '/')) != NULL)
+        name ++;
+      else
+        name = filename;
+
+      snprintf(oebpsname, sizeof(oebpsname), "OEBPS/%s", name);
+
+      status |= zipcCopyFile(epub, oebpsname, filename, 0, 0);
+    }
+
+    if ((next = mmdGetNextSibling(node)) == NULL)
+    {
+      next = mmdGetParent(node);
+
+      while (next && mmdGetNextSibling(next) == NULL)
+	next = mmdGetParent(next);
+
+      next = mmdGetNextSibling(next);
+    }
+
+    node = next;
+  }
 
  /*
   * Now the OEBPS/package.opf file...
