@@ -125,8 +125,8 @@ exceptions:
 - Support for `@@` links which resolve to literal names such as functions and
   types within the documentation.
 
-- Support for `#widthNN` in image URLs to scale images to 25, 33, 50, 66, 75,
-  and 100% width.
+- Support for ` =WIDTHxHEIGHT`, ` =WIDTHx`, and ` =xHEIGHT` in image URLs to
+  scale images to the specified size.
 
 - Support for the "c" and "cpp" languages for syntax highlighting in fenced
   code text.
@@ -376,24 +376,6 @@ h6 {
 }
 img.title {
   width: 256px;
-}
-img[src*="#width25"] {
-  width: 25%;
-}
-img[src*="#width33"] {
-  width: 33%;
-}
-img[src*="#width50"] {
-  width: 50%;
-}
-img[src*="#width66"] {
-  width: 66%;
-}
-img[src*="#width75"] {
-  width: 75%;
-}
-img[src*="#width100"] {
-  width: 100%;
 }
 div.header h1, div.header p {
   text-align: center;

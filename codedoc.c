@@ -2538,6 +2538,9 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
 		next_type;		/* Next leaf node type */
   const char	*text,			/* Text to write */
 		*url;			/* URL to write */
+  char		temp[1024],		/* Temporary filename/URL */
+		*widthspec,		/* Pointer to " =WIDTHxHEIGHT" */
+		*heightspec;		/* Pointer to "xHEIGHT" */
 
 
   type = mmdGetType(node);
@@ -2625,14 +2628,16 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
             * Local file so strip any directory info...
             */
 
-            const char *baseurl;	/* Base name of URL */
+            const char	*baseurl;	/* Base name of URL */
+
 
             if ((baseurl = strrchr(url, '/')) != NULL)
               baseurl ++;
             else
               baseurl = url;
 
-	    write_string(out, baseurl, mode, 0);
+            strncpy(temp, baseurl, sizeof(temp) - 1);
+            temp[sizeof(temp) - 1] = '\0';
 	  }
 	  else
 	  {
@@ -2640,8 +2645,32 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
 	    * Remote URL so use as-is...
 	    */
 
-	    write_string(out, url, mode, 0);
+            strncpy(temp, url, sizeof(temp) - 1);
+            temp[sizeof(temp) - 1] = '\0';
 	  }
+
+	  if ((widthspec = strstr(temp, " =")) != NULL)
+	  {
+	   /*
+	    * Split out width and height specification...
+	    */
+
+	    *widthspec = '\0';
+	    widthspec += 2;
+
+	    if ((heightspec = strchr(widthspec, 'x')) != NULL)
+	      *heightspec++ = '\0';
+	  }
+	  else
+	    heightspec = NULL;
+
+	  write_string(out, temp, mode, 0);
+
+	  if (widthspec && *widthspec)
+	    fprintf(out, "\" width=\"%s", widthspec);
+	  if (heightspec && *heightspec)
+	    fprintf(out, "\" height=\"%s", heightspec);
+
           fputs("\" alt=\"", out);
           write_string(out, text, mode, 0);
           if (mode == OUTPUT_EPUB)
@@ -5302,15 +5331,15 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
     {
       // Image is a local file reference, strip any "#target" and copy it...
       char	filename[1024],		/* Filename */
-		*target,		/* Pointer to target, if any */
+		*sizespec,		/* Pointer to size specification, if any */
 		*name,			/* Base name of file */
 		oebpsname[1024];	/* Filename in EPUB file */
 
       strncpy(filename, url, sizeof(filename) - 1);
       filename[sizeof(filename) - 1] = '\0';
 
-      if ((target = strchr(filename, '#')) != NULL)
-        *target = '\0';
+      if ((sizespec = strstr(filename, " =")) != NULL)
+        *sizespec = '\0';
 
       if ((name = strrchr(filename, '/')) != NULL)
         name ++;
@@ -6224,24 +6253,6 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "}\n"
 	  "img.title {\n"
 	  "  width: 256px;\n"
-	  "}\n"
-	  "img[src*=\"#width25\"] {\n"
-	  "  width: 25%;\n"
-	  "}\n"
-	  "img[src*=\"#width33\"] {\n"
-	  "  width: 33%;\n"
-	  "}\n"
-	  "img[src*=\"#width50\"] {\n"
-	  "  width: 50%;\n"
-	  "}\n"
-	  "img[src*=\"#width66\"] {\n"
-	  "  width: 66%;\n"
-	  "}\n"
-	  "img[src*=\"#width75\"] {\n"
-	  "  width: 75%;\n"
-	  "}\n"
-	  "img[src*=\"#width100\"] {\n"
-	  "  width: 100%;\n"
 	  "}\n"
 	  "div.header h1, div.header p {\n"
 	  "  text-align: center;\n"
