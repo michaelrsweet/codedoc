@@ -125,8 +125,8 @@ exceptions:
 - Support for `@@` links which resolve to literal names such as functions and
   types within the documentation.
 
-- Support for ` =WIDTHxHEIGHT`, ` =WIDTHx`, and ` =xHEIGHT` in image URLs to
-  scale images to the specified size.
+- Support for `::WIDTHxHEIGHT`, `::WIDTHx`, and `::xHEIGHT` in image (ALT) text
+  to scale images to the specified size.
 
 - Support for the "c" and "cpp" languages for syntax highlighting in fenced
   code text.

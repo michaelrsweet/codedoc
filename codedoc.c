@@ -2538,14 +2538,14 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
 		next_type;		/* Next leaf node type */
   const char	*text,			/* Text to write */
 		*url;			/* URL to write */
-  char		temp[1024],		/* Temporary filename/URL */
-		*widthspec,		/* Pointer to " =WIDTHxHEIGHT" */
-		*heightspec;		/* Pointer to "xHEIGHT" */
+  char		temp[1024],		/* Temporary string for text + width */
+		*widthspec,		/* Pointer to width specification, if any */
+		*heightspec;		/* Pointer to height specification, if any */
 
 
-  type = mmdGetType(node);
-  text = mmdGetText(node);
-  url  = mmdGetURL(node);
+  type  = mmdGetType(node);
+  text  = mmdGetText(node);
+  url   = mmdGetURL(node);
 
   if (mode == OUTPUT_MAN)
   {
@@ -2636,8 +2636,8 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
             else
               baseurl = url;
 
-            strncpy(temp, baseurl, sizeof(temp) - 1);
-            temp[sizeof(temp) - 1] = '\0';
+	    write_string(out, baseurl, mode, 0);
+
 	  }
 	  else
 	  {
@@ -2645,26 +2645,24 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
 	    * Remote URL so use as-is...
 	    */
 
-            strncpy(temp, url, sizeof(temp) - 1);
-            temp[sizeof(temp) - 1] = '\0';
+	    write_string(out, url, mode, 0);
 	  }
 
-	  if ((widthspec = strstr(temp, " =")) != NULL)
-	  {
-	   /*
-	    * Split out width and height specification...
-	    */
+          strncpy(temp, text, sizeof(temp) - 1);
+          temp[sizeof(temp) - 1] = '\0';
 
-	    *widthspec = '\0';
-	    widthspec += 2;
+          if ((widthspec = strstr(temp, "::")) != NULL)
+          {
+            *widthspec = '\0';
+            widthspec += 2;
 
-	    if ((heightspec = strchr(widthspec, 'x')) != NULL)
+            if ((heightspec = strchr(widthspec, 'x')) != NULL)
 	      *heightspec++ = '\0';
 	  }
 	  else
+	  {
 	    heightspec = NULL;
-
-	  write_string(out, temp, mode, 0);
+          }
 
 	  if (widthspec && *widthspec)
 	    fprintf(out, "\" width=\"%s", widthspec);
