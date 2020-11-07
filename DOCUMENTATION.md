@@ -426,6 +426,8 @@ p.code, pre, ul.code li {
   border: thin dotted gray;
   padding: 10px;
   page-break-inside: avoid;
+}
+pre {
   white-space: pre-wrap;
 }
 a:link, a:visited {
