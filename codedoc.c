@@ -2423,9 +2423,9 @@ markdown_write_block(FILE  *out,	/* I - Output file */
 
       case MMD_TYPE_CODE_BLOCK :
           if ((class_name = mmdGetExtra(parent)) != NULL)
-	    fprintf(out, "    <pre><code class=\"language-%s\">", class_name);
+	    fprintf(out, "<pre><code class=\"language-%s\">", class_name);
 	  else
-	    fputs("    <pre><code>", out);
+	    fputs("<pre><code>", out);
 
           for (node = mmdGetFirstChild(parent), histate = HIGHLIGHT_NONE; node; node = mmdGetNextSibling(node))
           {
@@ -2439,9 +2439,9 @@ markdown_write_block(FILE  *out,	/* I - Output file */
 
       case MMD_TYPE_THEMATIC_BREAK :
           if (mode == OUTPUT_EPUB)
-            fputs("    <hr />\n", out);
+            fputs("<hr />\n", out);
           else
-            fputs("    <hr>\n", out);
+            fputs("<hr>\n", out);
           return;
 
       case MMD_TYPE_TABLE :
@@ -2490,9 +2490,9 @@ markdown_write_block(FILE  *out,	/* I - Output file */
       */
 
       if (class_name)
-	fprintf(out, "    <%s class=\"%s\" id=\"", element, class_name);
+	fprintf(out, "<%s class=\"%s\" id=\"", element, class_name);
       else
-	fprintf(out, "    <%s id=\"", element);
+	fprintf(out, "<%s id=\"", element);
       for (node = mmdGetFirstChild(parent); node; node = mmdGetNextSibling(node))
       {
         if (mmdGetWhitespace(node))
@@ -2505,9 +2505,9 @@ markdown_write_block(FILE  *out,	/* I - Output file */
     else if (element)
     {
       if (class_name)
-	fprintf(out, "    <%s class=\"%s\">%s", element, class_name, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
+	fprintf(out, "<%s class=\"%s\">%s", element, class_name, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
       else
-	fprintf(out, "    <%s>%s", element, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
+	fprintf(out, "<%s>%s", element, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
     }
 
     for (node = mmdGetFirstChild(parent); node; node = mmdGetNextSibling(node))
@@ -4627,7 +4627,7 @@ write_description(
   }
 
   if (element && *element)
-    fprintf(out, "        <%s class=\"%s\">", element, summary ? "description" : "discussion");
+    fprintf(out, "<%s class=\"%s\">", element, summary ? "description" : "discussion");
   else if (!summary)
     fputs(".PP\n", out);
 
@@ -5007,7 +5007,7 @@ write_description(
           list = 0;
           fputs("</li>\n</ul>\n", out);
           if (!strcmp(element, "p"))
-	    fprintf(out, "        <%s class=\"%s\">", element, summary ? "description" : "discussion");
+	    fprintf(out, "<%s class=\"%s\">", element, summary ? "description" : "discussion");
         }
         else if (mode == OUTPUT_EPUB)
           fputs("<br />\n<br />\n", out);
@@ -5212,20 +5212,20 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
     * Use standard header...
     */
 
-    fputs("    <h1 class=\"title\">", fp);
+    fputs("<h1 class=\"title\">", fp);
     write_string(fp, title, OUTPUT_EPUB, 0);
     fputs("</h1>\n", fp);
 
     if (author)
     {
-      fputs("    <p>", fp);
+      fputs("<p>", fp);
       write_string(fp, author, OUTPUT_EPUB, 0);
       fputs("</p>\n", fp);
     }
 
     if (copyright)
     {
-      fputs("    <p>", fp);
+      fputs("<p>", fp);
       write_string(fp, copyright, OUTPUT_EPUB, 0);
       fputs("</p>\n", fp);
     }
@@ -5235,7 +5235,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
   * Body...
   */
 
-  fputs("    <div class=\"body\">\n", fp);
+  fputs("<div class=\"body\">\n", fp);
 
   write_html_body(fp, OUTPUT_EPUB, bodyfile, body, doc);
 
@@ -5252,8 +5252,8 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
     write_file(fp, footerfile, OUTPUT_EPUB);
   }
 
-  fputs("    </div>\n"
-        "  </body>\n"
+  fputs("</div>\n"
+        "</body>\n"
         "</html>\n", fp);
 
  /*
@@ -5471,13 +5471,12 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
     zipcFilePrintf(epubf, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                           "<!DOCTYPE html>\n"
                           "<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\">\n"
-                          "  <head>\n"
-                          "    <title>%s</title>\n"
-                          "    <style>ol { list-style-type: none; }</style>\n"
-                          "  </head>\n"
-                          "  <body>\n"
-                          "    <nav epub:type=\"toc\">\n"
-                          "      <ol>\n", title);
+                          "<head>\n"
+                          "<title>%s</title>\n"
+                          "<style>ol { list-style-type: none; }</style>\n"
+                          "</head>\n"
+                          "<body>\n"
+                          "<nav epub:type=\"toc\"><ol>\n", title);
 
     for (i = 0, tentry = toc->entries, toc_level = 1; i < toc->num_entries; i ++, tentry ++)
     {
@@ -5487,11 +5486,11 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
       }
       else if (tentry->level < toc_level)
       {
-        zipcFilePuts(epubf, "        </ol></li>\n");
+        zipcFilePuts(epubf, "</ol></li>\n");
         toc_level = tentry->level;
       }
 
-      zipcFilePrintf(epubf, "        %s<li><a href=\"body.xhtml#%s\">%s</a>", toc_level == 1 ? "" : "  ", tentry->anchor, tentry->title);
+      zipcFilePrintf(epubf, "<li><a href=\"body.xhtml#%s\">%s</a>", tentry->anchor, tentry->title);
       if ((i + 1) < toc->num_entries && tentry[1].level > toc_level)
         zipcFilePuts(epubf, "<ol>\n");
       else
@@ -5499,11 +5498,10 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
     }
 
     if (toc_level == 2)
-      zipcFilePuts(epubf, "        </ol></li>\n");
+      zipcFilePuts(epubf, "</ol></li>\n");
 
-    zipcFilePuts(epubf, "      </ol>\n"
-                        "    </nav>\n"
-                        "  </body>\n"
+    zipcFilePuts(epubf, "</ol></nav>\n"
+                        "</body>\n"
                         "</html>\n");
 
     zipcFileFinish(epubf);
@@ -5759,7 +5757,7 @@ write_html(const char  *section,	/* I - Section */
 
   write_html_head(stdout, OUTPUT_HTML, section, title, author, language, copyright, docversion, cssfile);
 
-  puts("    <div class=\"header\">");
+  puts("<div class=\"header\">");
 
   if (coverimage)
   {
@@ -5770,7 +5768,7 @@ write_html(const char  *section,	/* I - Section */
     else
       coverbase = coverimage;
 
-    fputs("      <p><img class=\"title\" src=\"", stdout);
+    fputs("<p><img class=\"title\" src=\"", stdout);
     write_string(stdout, coverbase, OUTPUT_HTML, 0);
     fputs("\"></p>\n", stdout);
   }
@@ -5793,26 +5791,26 @@ write_html(const char  *section,	/* I - Section */
     * Use standard header...
     */
 
-    fputs("      <h1 class=\"title\">", stdout);
+    fputs("<h1 class=\"title\">", stdout);
     write_string(stdout, title, OUTPUT_HTML, 0);
     fputs("</h1>\n", stdout);
 
     if (author)
     {
-      fputs("      <p>", stdout);
+      fputs("<p>", stdout);
       write_string(stdout, author, OUTPUT_HTML, 0);
       fputs("</p>\n", stdout);
     }
 
     if (copyright)
     {
-      fputs("      <p>", stdout);
+      fputs("<p>", stdout);
       write_string(stdout, copyright, OUTPUT_HTML, 0);
       fputs("</p>\n", stdout);
     }
   }
 
-  puts("    </div>");
+  puts("</div>");
 
  /*
   * Table of contents...
@@ -5826,7 +5824,7 @@ write_html(const char  *section,	/* I - Section */
   * Body...
   */
 
-  puts("    <div class=\"body\">");
+  puts("<div class=\"body\">");
 
   write_html_body(stdout, OUTPUT_HTML, bodyfile, body, doc);
 
@@ -5840,14 +5838,14 @@ write_html(const char  *section,	/* I - Section */
     * Use custom footer...
     */
 
-    puts("    </div>");
-    puts("    <div class=\"footer\">");
+    puts("</div>");
+    puts("<div class=\"footer\">");
 
     write_file(stdout, footerfile, OUTPUT_HTML);
   }
 
-  puts("    </div>\n"
-       "  </body>\n"
+  puts("</div>\n"
+       "</body>\n"
        "</html>");
 }
 
@@ -5890,7 +5888,7 @@ write_html_body(
 
   if ((scut = find_public(doc, doc, "class", NULL, mode)) != NULL)
   {
-    fputs("      <h2 class=\"title\"><a id=\"CLASSES\">Classes</a></h2>\n", out);
+    fputs("<h2 class=\"title\"><a id=\"CLASSES\">Classes</a></h2>\n", out);
 
     while (scut)
     {
@@ -5906,7 +5904,7 @@ write_html_body(
 
   if ((function = find_public(doc, doc, "function", NULL, mode)) != NULL)
   {
-    fputs("      <h2 class=\"title\"><a id=\"FUNCTIONS\">Functions</a></h2>\n", out);
+    fputs("<h2 class=\"title\"><a id=\"FUNCTIONS\">Functions</a></h2>\n", out);
 
     while (function)
     {
@@ -5922,18 +5920,18 @@ write_html_body(
 
   if ((scut = find_public(doc, doc, "typedef", NULL, mode)) != NULL)
   {
-    fputs("      <h2 class=\"title\"><a id=\"TYPES\">Data Types</a></h2>\n", out);
+    fputs("<h2 class=\"title\"><a id=\"TYPES\">Data Types</a></h2>\n", out);
 
     while (scut)
     {
       name        = mxmlElementGetAttr(scut, "name");
       description = mxmlFindElement(scut, scut, "description", NULL, NULL, MXML_DESCEND_FIRST);
-      fprintf(out, "      <h3 class=\"typedef\"><a id=\"%s\">%s%s</a></h3>\n", name, get_comment_info(description), name);
+      fprintf(out, "<h3 class=\"typedef\"><a id=\"%s\">%s%s</a></h3>\n", name, get_comment_info(description), name);
 
       if (description)
 	write_description(out, mode, description, "p", 1);
 
-      fputs("      <p class=\"code\">\n"
+      fputs("<p class=\"code\">\n"
 	    "typedef ", out);
 
       type = mxmlFindElement(scut, scut, "type", NULL, NULL, MXML_DESCEND_FIRST);
@@ -6021,7 +6019,7 @@ write_html_body(
 
   if ((scut = find_public(doc, doc, "struct", NULL, mode)) != NULL)
   {
-    fputs("      <h2 class=\"title\"><a id=\"STRUCTURES\">Structures</a></h2>\n", out);
+    fputs("<h2 class=\"title\"><a id=\"STRUCTURES\">Structures</a></h2>\n", out);
 
     while (scut)
     {
@@ -6037,7 +6035,7 @@ write_html_body(
 
   if ((scut = find_public(doc, doc, "union", NULL, mode)) != NULL)
   {
-    fputs("      <h2 class=\"title\"><a id=\"UNIONS\">Unions</a></h2>\n", out);
+    fputs("<h2 class=\"title\"><a id=\"UNIONS\">Unions</a></h2>\n", out);
 
     while (scut)
     {
@@ -6053,18 +6051,18 @@ write_html_body(
 
   if ((arg = find_public(doc, doc, "variable", NULL, mode)) != NULL)
   {
-    fputs("      <h2 class=\"title\"><a id=\"VARIABLES\">Variables</a></h2>\n", out);
+    fputs("<h2 class=\"title\"><a id=\"VARIABLES\">Variables</a></h2>\n", out);
 
     while (arg)
     {
       name        = mxmlElementGetAttr(arg, "name");
       description = mxmlFindElement(arg, arg, "description", NULL, NULL, MXML_DESCEND_FIRST);
-      fprintf(out, "      <h3 class=\"variable\"><a id=\"%s\">%s%s</a></h3>\n", name, get_comment_info(description), name);
+      fprintf(out, "<h3 class=\"variable\"><a id=\"%s\">%s%s</a></h3>\n", name, get_comment_info(description), name);
 
       if (description)
 	write_description(out, mode, description, "p", 1);
 
-      fputs("      <p class=\"code\">", out);
+      fputs("<p class=\"code\">", out);
 
       write_element(out, doc, mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST), OUTPUT_HTML);
       fputs(mxmlElementGetAttr(arg, "name"), out);
@@ -6082,24 +6080,24 @@ write_html_body(
 
   if ((scut = find_public(doc, doc, "enumeration", NULL, mode)) != NULL)
   {
-    fputs("      <h2 class=\"title\"><a id=\"ENUMERATIONS\">Constants</a></h2>\n", out);
+    fputs("<h2 class=\"title\"><a id=\"ENUMERATIONS\">Constants</a></h2>\n", out);
 
     while (scut)
     {
       name        = mxmlElementGetAttr(scut, "name");
       description = mxmlFindElement(scut, scut, "description", NULL, NULL, MXML_DESCEND_FIRST);
-      fprintf(out, "      <h3 class=\"enumeration\"><a id=\"%s\">%s%s</a></h3>\n", name, get_comment_info(description), name);
+      fprintf(out, "<h3 class=\"enumeration\"><a id=\"%s\">%s%s</a></h3>\n", name, get_comment_info(description), name);
 
       if (description)
 	write_description(out, mode, description, "p", 1);
 
-      fputs("      <h4 class=\"constants\">Constants</h4>\n"
-            "      <table class=\"list\"><tbody>\n", out);
+      fputs("<h4 class=\"constants\">Constants</h4>\n"
+            "<table class=\"list\"><tbody>\n", out);
 
       for (arg = find_public(scut, scut, "constant", NULL, mode); arg; arg = find_public(arg, scut, "constant", NULL, mode))
       {
 	description = mxmlFindElement(arg, arg, "description", NULL, NULL, MXML_DESCEND_FIRST);
-	fprintf(out, "        <tr><th>%s %s</th>", mxmlElementGetAttr(arg, "name"), get_comment_info(description));
+	fprintf(out, "<tr><th>%s %s</th>", mxmlElementGetAttr(arg, "name"), get_comment_info(description));
 
 	write_description(out, mode, description, "td", -1);
         fputs("</tr>\n", out);
@@ -6140,48 +6138,47 @@ write_html_head(FILE       *out,	/* I - Output file */
   if (section)
     fprintf(out, "<!-- SECTION: %s -->\n", section);
 
-  fputs("  <head>\n"
-        "    <title>", out);
+  fputs("<head>\n"
+        "<title>", out);
   write_string(out, title, mode, 0);
   fputs("</title>\n", out);
 
   if (mode == OUTPUT_EPUB)
   {
     if (section)
-      fprintf(out, "    <meta name=\"keywords\" content=\"%s\" />\n", section);
+      fprintf(out, "<meta name=\"keywords\" content=\"%s\" />\n", section);
 
-    fputs("    <meta name=\"generator\" content=\"codedoc v" VERSION "\" />\n"
-          "    <meta name=\"author\" content=\"", out);
+    fputs("<meta name=\"generator\" content=\"codedoc v" VERSION "\" />\n"
+          "<meta name=\"author\" content=\"", out);
     write_string(out, author, mode, 0);
     fprintf(out, "\" />\n"
-		 "    <meta name=\"language\" content=\"%s\" />\n"
-		 "    <meta name=\"copyright\" content=\"", language);
+		 "<meta name=\"language\" content=\"%s\" />\n"
+		 "<meta name=\"copyright\" content=\"", language);
     write_string(out, copyright, mode, 0);
     fputs("\" />\n"
-          "    <meta name=\"version\" content=\"", out);
+          "<meta name=\"version\" content=\"", out);
     write_string(out, docversion, mode, 0);
     fputs("\" />\n"
-          "    <style type=\"text/css\"><![CDATA[\n", out);
+          "<style type=\"text/css\"><![CDATA[\n", out);
   }
   else
   {
     if (section)
-      fprintf(out, "    <meta name=\"keywords\" content=\"%s\">\n", section);
+      fprintf(out, "<meta name=\"keywords\" content=\"%s\">\n", section);
 
-    fputs("    <meta http-equiv=\"Content-Type\" "
-          "content=\"text/html;charset=utf-8\">\n"
-          "    <meta name=\"generator\" content=\"codedoc v" VERSION "\">\n"
-          "    <meta name=\"author\" content=\"", out);
+    fputs("<meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\">\n"
+          "<meta name=\"generator\" content=\"codedoc v" VERSION "\">\n"
+          "<meta name=\"author\" content=\"", out);
     write_string(out, author, mode, 0);
     fprintf(out, "\">\n"
-		 "    <meta name=\"language\" content=\"%s\">\n"
-		 "    <meta name=\"copyright\" content=\"", language);
+		 "<meta name=\"language\" content=\"%s\">\n"
+		 "<meta name=\"copyright\" content=\"", language);
     write_string(out, copyright, mode, 0);
     fputs("\">\n"
-          "    <meta name=\"version\" content=\"", out);
+          "<meta name=\"version\" content=\"", out);
     write_string(out, docversion, mode, 0);
     fputs("\">\n"
-          "    <style type=\"text/css\"><!--\n", out);
+          "<style type=\"text/css\"><!--\n", out);
   }
 
   if (cssfile)
@@ -6435,12 +6432,12 @@ write_html_head(FILE       *out,	/* I - Output file */
 
   if (mode == OUTPUT_EPUB)
     fputs("]]></style>\n"
-          "  </head>\n"
-          "  <body>\n", out);
+          "</head>\n"
+          "<body>\n", out);
   else
     fputs("--></style>\n"
-          "  </head>\n"
-          "  <body>\n", out);
+          "</head>\n"
+          "<body>\n", out);
 }
 
 
@@ -6471,17 +6468,17 @@ write_html_toc(FILE        *out,	/* I - Output file */
   else
     targetattr[0] = '\0';
 
-  fputs("    <div class=\"contents\">\n", out);
+  fputs("<div class=\"contents\">\n", out);
 
   if (filename)
   {
-    fprintf(out, "      <h1 class=\"title\"><a href=\"%s\"%s>", filename, targetattr);
+    fprintf(out, "<h1 class=\"title\"><a href=\"%s\"%s>", filename, targetattr);
     write_string(out, title, OUTPUT_HTML, 0);
     fputs("</a></h1>\n", out);
   }
 
-  fputs("      <h2 class=\"title\">Contents</h2>\n"
-        "      <ul class=\"contents\">\n", out);
+  fputs("<h2 class=\"title\">Contents</h2>\n"
+        "<ul class=\"contents\">\n", out);
 
   for (i = 0, tentry = toc->entries, toc_level = 1; i < toc->num_entries; i ++, tentry ++)
   {
@@ -6491,11 +6488,11 @@ write_html_toc(FILE        *out,	/* I - Output file */
     }
     else if (tentry->level < toc_level)
     {
-      fputs("        </ul></li>\n", out);
+      fputs("</ul></li>\n", out);
       toc_level = tentry->level;
     }
 
-    fprintf(out, "        %s<li><a href=\"%s#%s\"%s>", toc_level == 1 ? "" : "  ", filename ? filename : "", tentry->anchor, targetattr);
+    fprintf(out, "<li><a href=\"%s#%s\"%s>", filename ? filename : "", tentry->anchor, targetattr);
     write_string(out, tentry->title, OUTPUT_HTML, 0);
 
     if ((i + 1) < toc->num_entries && tentry[1].level > toc_level)
@@ -6505,10 +6502,10 @@ write_html_toc(FILE        *out,	/* I - Output file */
   }
 
   if (toc_level == 2)
-    fputs("        </ul></li>\n", out);
+    fputs("</ul></li>\n", out);
 
-  fputs("      </ul>\n"
-        "    </div>\n", out);
+  fputs("</ul>\n"
+        "</div>\n", out);
 }
 
 

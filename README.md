@@ -25,6 +25,8 @@ Changes in v3.6
 - Fixed some parsing issues for the public typedef - private struct design
   pattern, resulting in undocumented typedefs.
 - Fixed a LGTM-detected bug in the description writing code.
+- No longer output unnecessary whitespace in HTML/EPUB output, for a modest
+  savings in file size.
 
 
 Changes in v3.5
