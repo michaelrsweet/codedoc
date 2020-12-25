@@ -1,6 +1,11 @@
 Codedoc v3.6
 ============
 
+![Version](https://img.shields.io/github/v/release/michaelrsweet/codedoc?include_prereleases)
+![Apache 2.0](https://img.shields.io/github/license/michaelrsweet/codedoc)
+[![LGTM Grade](https://img.shields.io/lgtm/grade/cpp/github/michaelrsweet/codedoc)](https://lgtm.com/projects/g/michaelrsweet/codedoc/context:cpp)
+[![LGTM Alerts](https://img.shields.io/lgtm/alerts/github/michaelrsweet/codedoc)](https://lgtm.com/projects/g/michaelrsweet/codedoc/)
+
 Codedoc is a general-purpose utility which scans HTML, markdown, C, and C++
 source files to produce EPUB, HTML, and man page documentation that can be read
 by humans.  Unlike popular C/C++ documentation generators like Doxygen or
