@@ -29,7 +29,7 @@ Changes in v3.6
 - Fixed support for embedded images in EPUB output.
 - Fixed some parsing issues for the public typedef - private struct design
   pattern, resulting in undocumented typedefs.
-- Fixed a LGTM-detected bug in the description writing code.
+- Fixed a few Cppcheck and LGTM-detected bugs.
 - No longer output unnecessary whitespace in HTML/EPUB output, for a modest
   savings in file size.
 
