@@ -1056,7 +1056,8 @@ mmdLoadFile(FILE *fp)			/* I - File to load */
 	  while (isspace(*start & 255))
 	    start ++;
 
-	  for (end = start + strlen(start) - 1; end > start && isspace(*end & 255); end --);
+	  for (end = start + strlen(start) - 1; end > start && isspace(*end & 255); end --)
+	    ;				/* Find the last non-space character */
 
 	  if (*start == ':' && *end == ':')
 	    columns[col] = MMD_TYPE_TABLE_BODY_CELL_CENTER;
@@ -2261,7 +2262,7 @@ mmd_ref_find(_mmd_doc_t *doc,		/* I - Document */
 static void
 mmd_remove(mmd_t *node)			/* I - Node */
 {
-  if (node->parent)
+  if (node && node->parent)
   {
     if (node->prev_sibling)
       node->prev_sibling->next_sibling = node->next_sibling;

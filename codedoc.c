@@ -2842,7 +2842,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 #endif /* DEBUG > 1 */
 
 
-  DEBUG_printf("scan_file(file.filename=\"%s\", .fp=%p, tree=%p, nsname=\"%s\")\n", file->filename, file->fp, tree, nsname);
+  DEBUG_printf("scan_file(file.filename=\"%s\", .fp=%p, tree=%p, nsname=\"%s\")\n", file->filename, file->fp, tree, nsname ? nsname : "(null)");
 
  /*
   * Initialize the finite state machine...
