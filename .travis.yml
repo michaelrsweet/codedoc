@@ -1,0 +1,32 @@
+#
+# Travis CI configuration file for codedoc.
+#
+
+language: c
+
+jobs:
+  include:
+    # Linux-specific build stuff
+    - os: linux
+      dist: focal
+      virt: vm
+      env:
+        - ASAN_OPTIONS=leak_check_at_exit=false
+      script: make sanitizer && make test && make cppcheck
+      addons:
+        apt:
+          packages: [cppcheck, libmxml1-dev]
+
+    # macOS-specific build stuff
+    - os: osx
+      osx_image: xcode12.2
+      script: make sanitizer && make test
+      addons:
+        homebrew:
+          packages: [libmxml]
+          update: true
+
+notifications:
+  email:
+    recipients:
+      - msweet@msweet.org
