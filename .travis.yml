@@ -15,7 +15,7 @@ jobs:
       script: make sanitizer && make test && make cppcheck
       addons:
         apt:
-          packages: [cppcheck, libmxml1-dev]
+          packages: [cppcheck, libmxml-dev]
 
     # macOS-specific build stuff
     - os: osx
