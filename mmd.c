@@ -3,7 +3,7 @@
  *
  *     https://github.com/michaelrsweet/mmd
  *
- * Copyright © 2017-2020 by Michael R Sweet.
+ * Copyright © 2017-2021 by Michael R Sweet.
  *
  * Licensed under Apache License v2.0.	See the file "LICENSE" for more
  * information.
@@ -526,10 +526,7 @@ mmdLoadFile(FILE *fp)			/* I - File to load */
   doc.root = mmd_add(NULL, MMD_TYPE_DOCUMENT, 0, NULL, NULL);
 
   if (!doc.root)
-  {
-    fclose(fp);
     return (NULL);
-  }
 
  /*
   * Initialize the block stack...
@@ -1118,6 +1115,7 @@ mmdLoadFile(FILE *fp)			/* I - File to load */
       }
 
       mmd_add(stackptr->parent, MMD_TYPE_CODE_TEXT, 0, line + stackptr->indent, NULL);
+
       continue;
     }
 
@@ -1217,6 +1215,9 @@ mmd_add(mmd_t	   *parent,		/* I - Parent node */
 
 
   DEBUG2_printf("Adding %s to %p(%s), whitespace=%d, text=\"%s\", url=\"%s\"\n", mmd_type_string(type), parent, parent ? mmd_type_string(parent->type) : "", whitespace, text ? text : "(null)", url ? url : "(null)");
+
+  if (!parent && type != MMD_TYPE_DOCUMENT)
+    return (NULL);			/* Only document nodes can be at the root */
 
   if ((temp = calloc(1, sizeof(mmd_t))) != NULL)
   {
