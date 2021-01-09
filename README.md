@@ -21,7 +21,7 @@ utility.
 Changes in vFUTURE
 ------------------
 
-- Cleaned up some issues reported by Coverity.
+- Cleaned up some issues reported by Coverity and Cppcheck.
 
 
 Changes in v3.6

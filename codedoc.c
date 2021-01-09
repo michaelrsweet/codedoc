@@ -1183,7 +1183,9 @@ epub_ws_cb(mxml_node_t *node,		/* I - Element node */
         if ((temp = mxmlGetFirstChild(node)) != NULL && mxmlGetType(temp) != MXML_ELEMENT)
           return (NULL);
 
-	for (depth = -4; node; node = mxmlGetParent(node), depth += 2);
+	for (depth = -4; node; node = mxmlGetParent(node), depth += 2)
+	  ;				// Count the depth
+
 	if (depth > 40)
 	  return (spaces);
 	else if (depth < 2)
@@ -1195,7 +1197,9 @@ epub_ws_cb(mxml_node_t *node,		/* I - Element node */
 	return ("\n");
 
     case MXML_WS_BEFORE_OPEN :
-	for (depth = -4; node; node = mxmlGetParent(node), depth += 2);
+	for (depth = -4; node; node = mxmlGetParent(node), depth += 2)
+	  ;				// Count the depth
+
 	if (depth > 40)
 	  return (spaces);
 	else if (depth < 2)
@@ -3737,7 +3741,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	      {
 		stringbuf_append(&buffer, '\n');
 
-                while ((ch = filebuf_getc(file)) == ' ');
+                while ((ch = filebuf_getc(file)) == ' ')
+                  ;			// Skip whitespace
 
                 filebuf_ungetc(file, ch);
 		break;
@@ -4463,7 +4468,8 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
   * Remove leading spaces...
   */
 
-  for (ptr = s; *ptr && isspace(*ptr & 255); ptr ++);
+  for (ptr = s; *ptr && isspace(*ptr & 255); ptr ++)
+    ;					// Skip leading spaces
 
   if (ptr > s)
     safe_strcpy(s, ptr);
@@ -4481,7 +4487,8 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
     */
 
     DEBUG_puts("    found quote");
-    for (ptr ++; *ptr && *ptr != '\'' && *ptr != '('; ptr ++);
+    for (ptr ++; *ptr && *ptr != '\'' && *ptr != '('; ptr ++)
+      ;					// Look for end quote
 
     if (*ptr == '(' && ptr[1] == ')' && ptr[2] == '\'')
     {
@@ -4528,8 +4535,12 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
   * Eliminate leading and trailing *'s...
   */
 
-  for (ptr = s; *ptr == '*'; ptr ++);
-  for (; isspace(*ptr & 255); ptr ++);
+  for (ptr = s; *ptr == '*'; ptr ++)
+    ;					// Skip leading *
+
+  for (; isspace(*ptr & 255); ptr ++)
+    ;					// Skip leading whitespace
+
   if (ptr > s)
     safe_strcpy(s, ptr);
 
@@ -4789,7 +4800,8 @@ write_description(
 
       if (end != '`')
       {
-        for (ptr += 5; isspace(*ptr & 255); ptr ++);
+        for (ptr += 5; isspace(*ptr & 255); ptr ++)
+          ;				// Skip whitespace after @code
       }
 
       for (start = ptr, ptr ++; *ptr && *ptr != end; ptr ++)
@@ -4823,7 +4835,8 @@ write_description(
     }
     else if (!strncmp(ptr, "@link ", 6))
     {
-      for (ptr += 6; isspace(*ptr & 255); ptr ++);
+      for (ptr += 6; isspace(*ptr & 255); ptr ++)
+        ;				// Skip whitespace
 
       for (start = ptr, ptr ++; *ptr && *ptr != '@'; ptr ++)
         col ++;
@@ -7253,7 +7266,9 @@ ws_cb(mxml_node_t *node,		/* I - Element node */
         if (strcmp(name, "argument") && strcmp(name, "class") && strcmp(name, "constant") && strcmp(name, "enumeration") && strcmp(name, "function") && strcmp(name, "codedoc") && strcmp(name, "namespace") && strcmp(name, "returnvalue") && strcmp(name, "struct") && strcmp(name, "typedef") && strcmp(name, "union") && strcmp(name, "variable"))
 	  return (NULL);
 
-	for (depth = -4; node; node = mxmlGetParent(node), depth += 2);
+	for (depth = -4; node; node = mxmlGetParent(node), depth += 2)
+	  ;				// Determine depth
+
 	if (depth > 40)
 	  return (spaces);
 	else if (depth < 2)
@@ -7265,7 +7280,9 @@ ws_cb(mxml_node_t *node,		/* I - Element node */
 	return ("\n");
 
     case MXML_WS_BEFORE_OPEN :
-	for (depth = -4; node; node = mxmlGetParent(node), depth += 2);
+	for (depth = -4; node; node = mxmlGetParent(node), depth += 2)
+	  ;				// Determine depth
+
 	if (depth > 40)
 	  return (spaces);
 	else if (depth < 2)
