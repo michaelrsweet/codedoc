@@ -18,6 +18,12 @@ Codedoc was originally bundled with the Mini-XML library as the `mxmldoc`
 utility.
 
 
+Changes in vFUTURE
+------------------
+
+- Cleaned up some issues reported by Coverity.
+
+
 Changes in v3.6
 ---------------
 

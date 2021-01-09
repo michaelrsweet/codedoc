@@ -249,6 +249,9 @@ mmdFree(mmd_t *node)			/* I - First node */
 	*next;				/* Next node */
 
 
+  if (!node)
+    return;
+
   mmd_remove(node);
 
   for (current = node->first_child; current; current = next)

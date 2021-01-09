@@ -3,7 +3,7 @@
  *
  *     https://www.msweet.org/codedoc
  *
- * Copyright © 2003-2020 by Michael R Sweet.
+ * Copyright © 2003-2021 by Michael R Sweet.
  *
  * Licensed under Apache License v2.0.  See the file "LICENSE" for more
  * information.
@@ -2023,8 +2023,8 @@ html_gets(FILE	 *fp,			/* I - File to read from */
 	  char	 *fragment,		/* I - Fragment string buffer */
 	  size_t fragsize)		/* I - Size of buffer */
 {
-  char	ch,				/* Current character */
-	*fragptr,			/* Pointer into buffer */
+  int	ch;				/* Current character */
+  char	*fragptr,			/* Pointer into buffer */
 	*fragend;			/* Pointer to end of buffer */
 
 
@@ -2041,7 +2041,7 @@ html_gets(FILE	 *fp,			/* I - File to read from */
     return (NULL);
   }
 
-  *fragptr++ = ch;
+  *fragptr++ = (char)ch;
 
   if (ch == '<')
   {
@@ -2052,7 +2052,7 @@ html_gets(FILE	 *fp,			/* I - File to read from */
     while ((ch = getc(fp)) != EOF)
     {
       if (fragptr < fragend)
-	*fragptr++ = ch;
+	*fragptr++ = (char)ch;
 
       if (ch == '>')
       {
@@ -2068,12 +2068,12 @@ html_gets(FILE	 *fp,			/* I - File to read from */
 	* Read quoted string...
 	*/
 
-	char quote = ch;
+	int quote = ch;
 
 	while ((ch = getc(fp)) != EOF)
 	{
 	  if (fragptr < fragend)
-	    *fragptr++ = ch;
+	    *fragptr++ = (char)ch;
 
 	  if (ch == quote)
 	    break;
@@ -2081,7 +2081,7 @@ html_gets(FILE	 *fp,			/* I - File to read from */
       }
     }
 
-    *fragptr++ = '\0';
+    *fragptr = '\0';
   }
   else
   {
@@ -2097,10 +2097,10 @@ html_gets(FILE	 *fp,			/* I - File to read from */
 	break;
       }
       else if (fragptr < fragend)
-	*fragptr++ = ch;
+	*fragptr++ = (char)ch;
     }
 
-    *fragptr++ = '\0';
+    *fragptr = '\0';
 
     html_unescape(fragment);
   }
@@ -2505,7 +2505,7 @@ markdown_write_block(FILE  *out,	/* I - Output file */
     else if (element)
     {
       if (class_name)
-	fprintf(out, "<%s class=\"%s\">%s", element, class_name, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
+	fprintf(out, "<%s class=\"%s\">", element, class_name);
       else
 	fprintf(out, "<%s>%s", element, type <= MMD_TYPE_UNORDERED_LIST ? "\n" : "");
     }
