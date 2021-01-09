@@ -32,7 +32,7 @@ jobs:
           notification_email: msweet@msweet.org
           build_command_prepend: "make clean"
           build_command: "make"
-          branch_pattern: master
+          branch_pattern: coverity_scan
 
     # macOS-specific build stuff
     - os: osx
