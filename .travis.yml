@@ -25,15 +25,14 @@ jobs:
       addons:
         apt:
           packages: [cppcheck, libmxml-dev]
-        addons:
-          coverity_scan:
-            project:
-              name: "michaelrsweet/codedoc"
-              description: "A Code Documentation Utility"
-            notification_email: msweet@msweet.org
-            build_command_prepend: "make clean"
-            build_command: "make"
-            branch_pattern: master
+        coverity_scan:
+          project:
+            name: "michaelrsweet/codedoc"
+            description: "A Code Documentation Utility"
+          notification_email: msweet@msweet.org
+          build_command_prepend: "make clean"
+          build_command: "make"
+          branch_pattern: master
 
     # macOS-specific build stuff
     - os: osx
