@@ -1111,7 +1111,13 @@ zipcOpen(const char *filename,		/* I - Filename of container */
             zf->offset            = (size_t)offset;
             zf->local_size        = (size_t)(ftell(zc->fp) - offset);
 
-            fseek(zc->fp, compressed_size, SEEK_CUR);
+            if (fseek(zc->fp, compressed_size, SEEK_CUR) < 0)
+            {
+	      fclose(zc->fp);
+	      free(zc->files);
+	      free(zc);
+	      return (NULL);
+            }
             break;
 
        default :
