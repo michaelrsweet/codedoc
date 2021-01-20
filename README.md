@@ -1,4 +1,4 @@
-Codedoc v3.6
+Codedoc v3.7
 ============
 
 ![Version](https://img.shields.io/github/v/release/michaelrsweet/codedoc?include_prereleases)
@@ -18,9 +18,11 @@ Codedoc was originally bundled with the Mini-XML library as the `mxmldoc`
 utility.
 
 
-Changes in vFUTURE
-------------------
+Changes in v3.7
+---------------
 
+- Added quoting of "." and "'" at the beginning of lines and now use the ".IP"
+  macro instead of ".IN" in man output (Issue #12)
 - Cleaned up some issues reported by Coverity and Cppcheck.
 
 

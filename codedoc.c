@@ -2641,7 +2641,6 @@ markdown_write_leaf(FILE  *out,		/* I - Output file */
               baseurl = url;
 
 	    write_string(out, baseurl, mode, 0);
-
 	  }
 	  else
 	  {
@@ -4695,7 +4694,7 @@ write_description(
       else
       {
         bq = 1;
-        fputs(".IN 5\n", out);
+        fputs(".IP 5\n", out);
       }
     }
     else if (col == 0 && !strncmp(ptr, "```\n", 4))
@@ -4766,7 +4765,7 @@ write_description(
 	}
 	else
 	{
-	  if (*ptr == '\\' || (*ptr == '.' && col == 0))
+	  if (*ptr == '\\' || ((*ptr == '.' || *ptr == '\'') && col == 0))
 	    putc('\\', out);
 
 	  putc(*ptr, out);
@@ -5043,7 +5042,7 @@ write_description(
       if (*ptr == '\\' && ptr[1])
         ptr ++;
 
-      if (*ptr == '\\' || (*ptr == '.' && col == 0))
+      if (*ptr == '\\' || ((*ptr == '.' || *ptr == '\'') && col == 0))
         putc('\\', out);
 
       putc(*ptr, out);
@@ -7199,6 +7198,9 @@ write_string(FILE       *out,		/* I - Output file */
         break;
 
     case OUTPUT_MAN :
+        if (*s == '\'' || *s == '.')
+	  putc('\\', out);		// Escape leading "." or "'"
+
         while (*s && s < end)
         {
           if (!strncasecmp(s, COPYRIGHT_ASCII, COPYRIGHT_ASCII_LEN) && (s == start || isspace(s[-1] & 255)) && (!s[COPYRIGHT_ASCII_LEN] || isspace(s[COPYRIGHT_ASCII_LEN] & 255)))
