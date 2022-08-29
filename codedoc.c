@@ -577,7 +577,7 @@ main(int  argc,				/* I - Number of command-line args */
   */
 
   if (is_markdown(bodyfile))
-    body = mmdLoad(bodyfile);
+    body = mmdLoad(NULL, bodyfile);
   else
     body = NULL;
 
@@ -1128,7 +1128,7 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
     mmd_t *mmd = NULL;
 
     if (is_markdown(footerfile))
-      mmd = mmdLoad(footerfile);
+      mmd = mmdLoad(NULL, footerfile);
 
     add_file_toc(toc, footerfile, mmd);
 
@@ -5559,7 +5559,7 @@ write_file(FILE       *out,		/* I - Output file */
     * Convert markdown source to the output format...
     */
 
-    mmd_t *mmd = mmdLoad(file);		/* Markdown document */
+    mmd_t *mmd = mmdLoad(NULL, file);	/* Markdown document */
 
     if (mmd)
     {
