@@ -3,7 +3,7 @@
  *
  *     https://www.msweet.org/codedoc
  *
- * Copyright © 2003-2021 by Michael R Sweet.
+ * Copyright © 2003-2022 by Michael R Sweet.
  *
  * Licensed under Apache License v2.0.  See the file "LICENSE" for more
  * information.
@@ -2898,7 +2898,12 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		if (ch == '*')
 		  state = STATE_C_COMMENT;
 		else if (ch == '/')
+		{
 		  state = STATE_CXX_COMMENT;
+
+		  if ((ch = filebuf_getc(file)) != ' ')
+		    filebuf_ungetc(file, ch);
+		}
 		else
 		{
 		  filebuf_ungetc(file, ch);
@@ -3578,7 +3583,16 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		      break;
 		    }
 		    else
-		      filebuf_ungetc(file, ch);
+		    {
+		      while (ch == '*')
+		        ch = filebuf_getc(file);
+
+		      if (ch != ' ')
+		        filebuf_ungetc(file, ch);
+
+		      ch = EOF;
+		      break;
+		    }
 		  }
 		  else if (ch == '\n' && stringbuf_length(&buffer) > 0)
 		    stringbuf_append(&buffer, ch);
@@ -3740,10 +3754,8 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 	      {
 		stringbuf_append(&buffer, '\n');
 
-                while ((ch = filebuf_getc(file)) == ' ')
-                  ;			// Skip whitespace
-
-                filebuf_ungetc(file, ch);
+                if ((ch = filebuf_getc(file)) != ' ')
+                  filebuf_ungetc(file, ch);
 		break;
 	      }
 	      else
@@ -3870,8 +3882,6 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 	    DEBUG_printf("C++ comment: <<<< %s >>>\n", commstr);
 	  }
-	  else if (ch == ' ' && stringbuf_length(&buffer) == 0)
-	    break;
 	  else
 	    stringbuf_append(&buffer, ch);
           break;
@@ -4710,7 +4720,7 @@ write_description(
       else
         fputs(".nf\n", out);
 
-      while (*ptr && (col != 0 || strncmp(ptr, "```\n", 4)))
+      while (*ptr && (col != 0 || (strncmp(ptr, "```\n", 4) && strcmp(ptr, "```"))))
       {
         if (col == 0 && !element)
           fputs("    ", out);
@@ -4774,8 +4784,10 @@ write_description(
 	ptr ++;
       }
 
-      if (*ptr)
-        ptr += 4;
+      if (!strncmp(ptr, "```\n", 4))
+        ptr += 3;
+      else if (!strcmp(ptr, "```"))
+        ptr += 2;
 
       col = 0;
 

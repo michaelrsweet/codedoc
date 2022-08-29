@@ -3,7 +3,7 @@
 #
 #     https://www.msweet.org/codedoc
 #
-# Copyright © 2003-2021 by Michael R Sweet.
+# Copyright © 2003-2022 by Michael R Sweet.
 #
 # Licensed under Apache License v2.0.  See the file "LICENSE" for more
 # information.

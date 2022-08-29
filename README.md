@@ -23,6 +23,8 @@ Changes in v3.7
 
 - Added quoting of "." and "'" at the beginning of lines and now use the ".IP"
   macro instead of ".IN" in man output (Issue #12)
+- Fixed support for markdown code fences and indentation in code example
+  comments.
 - Cleaned up some issues reported by Coverity and Cppcheck.
 
 
@@ -151,7 +153,7 @@ The codedoc project page provides access to the Github issue tracking page:
 Legal Stuff
 -----------
 
-Copyright © 2003-2021 by Michael R Sweet
+Copyright © 2003-2022 by Michael R Sweet
 
 Codedoc is licensed under the Apache License Version 2.0.  See the files
 "LICENSE" and "NOTICE" for more information.

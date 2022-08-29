@@ -69,9 +69,21 @@ foo_float_function(int        one,	/* I - Integer */
 }
 
 
-/*
- * 'foo_default_string()' - Do something with a defaulted string arg.
- */
+//
+// 'foo_default_string()' - Do something with a defaulted string arg.
+//
+// This function does something with the defaulted string argument "two".
+// Example usage:
+//
+// ```
+// void foo(void)
+// {
+//   foo_default_string(1);
+//   foo_default_string(2, "3");
+//   ... more calls ...
+// }
+// ```
+//
 
 int					/* O - Integer value */
 foo_default_string(int one,		/* I - Integer */
@@ -91,6 +103,18 @@ foo_default_string(int one,		/* I - Integer */
 
 /*
  * 'foo_default_int()' - Do something with a defaulted int arg.
+ *
+ * This function does something with the defaulted int argument "two".
+ * Example usage:
+ *
+ * ```
+ * void bar(void)
+ * {
+ *   foo_default_int(1);
+ *   foo_default_int(2, 3);
+ *   ... more calls ...
+ * }
+ * ```
  */
 
 int					/* O - Integer value */
