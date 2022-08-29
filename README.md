@@ -23,6 +23,8 @@ Changes in v3.7
 
 - Added quoting of "." and "'" at the beginning of lines and now use the ".IP"
   macro instead of ".IN" in man output (Issue #12)
+- Added support for `@body@` comment directive to add body text inline with code
+  (Issue #10)
 - Fixed support for markdown code fences and indentation in code example
   comments.
 - Cleaned up some issues reported by Coverity and Cppcheck.

@@ -1,8 +1,8 @@
 ---
 title: How to Use the codedoc Utility
 author: Michael R Sweet
-copyright: Copyright © 2003-2020 by Michael R Sweet
-version: 3.6
+copyright: Copyright © 2003-2022 by Michael R Sweet
+version: 3.7
 ...
 
 Introduction
@@ -197,6 +197,7 @@ Any subsequent paragraphs are used as the detailed description of an item.
 Comments can also include the following special `@name ...@`
 directive strings:
 
+- `@body@`: appends the comment to the body text
 - `@code text@`: formats the text as code
 - `@deprecated@`: flags the item as deprecated to discourage its use
 - `@exclude format[,...,format]@`: excludes the item from the
@@ -222,18 +223,17 @@ Comments can use a small subset of markdown inline formatting characters:
 - "\<url>": inserts a hyperlink
 - "\\": escapes the character that follows
 
-In addition, example code can be surrounded by lines containing "\`\`\`". Use
-a leading "|" to ensure that any indentation is not lost:
+In addition, example code can be surrounded by lines containing "\`\`\`":
 
 ```
 /*
  * Example code:
  *
  * ```
- * | foo = get_foo() + get_baz();
- * | bar = get_bar() / foo;
- * | if (bar > 42)
- * |   do_waz();
+ * foo = get_foo() + get_baz();
+ * bar = get_bar() / foo;
+ * if (bar > 42)
+ *   do_waz();
  * ```
  */
 ```

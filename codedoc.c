@@ -204,7 +204,7 @@ static void		markdown_write_block(FILE *out, mmd_t *parent, int mode);
 static void		markdown_write_leaf(FILE *out, mmd_t *node, int mode);
 static mxml_node_t	*new_documentation(mxml_node_t **codedoc);
 static void		safe_strcpy(char *dst, const char *src);
-static int		scan_file(filebuf_t *file, mxml_node_t *doc, const char *nsname);
+static int		scan_file(filebuf_t *file, mxml_node_t *doc, const char *nsname, mmd_t **body);
 static void		sort_node(mxml_node_t *tree, mxml_node_t *func);
 static int		stringbuf_append(stringbuf_t *buffer, int ch);
 static void		stringbuf_clear(stringbuf_t *buffer);
@@ -255,7 +255,7 @@ main(int  argc,				/* I - Number of command-line args */
 		*section = NULL,	/* Section/keywords of documentation */
 		*title = NULL,		/* Title of documentation */
 		*xmlfile = NULL;	/* XML file */
-  mmd_t		*body;			/* Body markdown file, if any */
+  mmd_t		*body = NULL;		/* Body markdown file, if any */
   int		mode = OUTPUT_HTML,	/* Output mode */
 		update = 0;		/* Updated XML file */
 
@@ -306,6 +306,9 @@ main(int  argc,				/* I - Number of command-line args */
         bodyfile = argv[i];
       else
         usage(NULL);
+
+      if (is_markdown(bodyfile))
+        body = mmdLoad(body, bodyfile);
     }
     else if (!strcmp(argv[i], "--copyright") && !copyright)
     {
@@ -526,7 +529,7 @@ main(int  argc,				/* I - Number of command-line args */
 	  mxmlDelete(doc);
 	  return (1);
 	}
-	else if (!scan_file(&file, codedoc, NULL))
+	else if (!scan_file(&file, codedoc, NULL, &body))
 	{
 	  fclose(file.fp);
 	  mxmlDelete(doc);
@@ -573,13 +576,8 @@ main(int  argc,				/* I - Number of command-line args */
   }
 
  /*
-  * Load the body file and collect the default metadata values, if present.
+  * Collect the default metadata values, if present.
   */
-
-  if (is_markdown(bodyfile))
-    body = mmdLoad(NULL, bodyfile);
-  else
-    body = NULL;
 
   if (!title)
     title = mmdGetMetadata(body, "title");
@@ -2797,10 +2795,11 @@ safe_strcpy(char       *dst,		/* I - Destination string */
  * 'scan_file()' - Scan a source file.
  */
 
-static int				/* O - 1 on success, 0 on error */
-scan_file(filebuf_t   *file,		/* I - File to scan */
-          mxml_node_t *tree,		/* I - Function tree */
-          const char  *nsname)		/* I - Namespace name */
+static int				/* O  - 1 on success, 0 on error */
+scan_file(filebuf_t   *file,		/* I  - File to scan */
+          mxml_node_t *tree,		/* I  - Function tree */
+          const char  *nsname,		/* I  - Namespace name */
+          mmd_t       **body)		/* IO - Body markdown text */
 {
   int		state,			/* Current parser state */
 		braces,			/* Number of braces active */
@@ -2845,7 +2844,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 #endif /* DEBUG > 1 */
 
 
-  DEBUG_printf("scan_file(file.filename=\"%s\", .fp=%p, tree=%p, nsname=\"%s\")\n", file->filename, file->fp, tree, nsname ? nsname : "(null)");
+  DEBUG_printf("scan_file(file.filename=\"%s\", .fp=%p, tree=%p, nsname=\"%s\", body=%p)\n", file->filename, file->fp, tree, nsname ? nsname : "(null)", (void *)*body);
 
  /*
   * Initialize the finite state machine...
@@ -2943,7 +2942,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
             case '{' :
                 if (nskeyword)
                 {
-                  if (!scan_file(file, tree, nsnamestr))
+                  if (!scan_file(file, tree, nsnamestr, body))
 		  {
 		    mxmlDelete(comment);
 		    return (0);
@@ -3091,7 +3090,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		  update_comment(structclass, mxmlGetLastChild(comment));
 		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
 
-                  if (!scan_file(file, structclass, nsname))
+                  if (!scan_file(file, structclass, nsname, body))
 		  {
 		    mxmlDelete(comment);
 		    return (0);
@@ -3171,7 +3170,7 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 		}
 		else if (type && string && !strcmp(string, "extern"))
                 {
-                  if (!scan_file(file, tree, nsname))
+                  if (!scan_file(file, tree, nsname, body))
 		  {
 		    mxmlDelete(comment);
 		    return (0);
@@ -3568,6 +3567,14 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
         		mxmlNewOpaque(comment, commstr);
 			update_comment(tree, mxmlNewOpaque(description, commstr));
 		      }
+		      else if (!strncmp(commstr, "@body@", 6))
+		      {
+		       /*
+		        * Append comment as body text...
+		        */
+
+		        *body = mmdLoadString(*body, commstr + 6);
+		      }
 		      else
 		      {
 		        DEBUG_printf("    before adding comment, child=%p, last_child=%p\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
@@ -3876,6 +3883,14 @@ scan_file(filebuf_t   *file,		/* I - File to scan */
 
 	      mxmlNewOpaque(comment, commstr);
 	      update_comment(tree, mxmlNewOpaque(description, commstr));
+	    }
+	    else if (!strncmp(commstr, "@body@", 6))
+	    {
+	     /*
+	      * Append comment as body text...
+	      */
+
+	      *body = mmdLoadString(*body, commstr + 6);
 	    }
 	    else
               mxmlNewOpaque(comment, commstr);
