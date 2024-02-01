@@ -3117,8 +3117,10 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    next_string = get_nth_text(type, 1, NULL);
 		  }
 		  else
+		  {
+        mxmlDelete(typedefnode);
 		    typedefnode = NULL;
-
+      }
 		  enumeration = mxmlNewElement(MXML_NO_PARENT, "enumeration");
 
                   DEBUG_printf("Enumeration: <<<< %s >>>\n", next_string ? next_string : "(noname)");
@@ -4239,6 +4241,8 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
   }
 
   mxmlDelete(comment);
+  mxmlDelete(function);
+  mxmlDelete(type);
 
  /*
   * All done, return with no errors...
