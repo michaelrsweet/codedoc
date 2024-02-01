@@ -4314,8 +4314,6 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
 
       mxmlElementSetAttr(node, "scope", scope);
     }
-
-    mxmlDelete(temp);
   }
 
  /*
