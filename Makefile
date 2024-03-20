@@ -46,6 +46,10 @@ cppcheck:
 	cppcheck --template=gcc --addon=cert.py --suppress=cert-MSC24-C --suppress=cert-EXP05-C --suppress=cert-API01-C --suppress=cert-INT31-c --suppress=cert-STR05-C $(OBJS:.o=.c) 2>cppcheck.log
 	@test -s cppcheck.log && (echo ""; echo "Errors detected:"; echo ""; cat cppcheck.log; exit 1) || exit 0
 
+debug:
+	$(MAKE) clean
+	$(MAKE) OPTIM="-g -fsanitize=address" OPTIONS="-DDEBUG=2" all
+
 sanitizer:
 	$(MAKE) clean
 	$(MAKE) OPTIM="-g -fsanitize=address" all

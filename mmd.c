@@ -13,7 +13,7 @@
  * Define DEBUG to get debug printf messages to stderr.
  */
 
-#define DEBUG 0
+//#define DEBUG 0
 #if DEBUG > 0
 #  define DEBUG_printf(...)	fprintf(stderr, __VA_ARGS__)
 #  define DEBUG_puts(s)		fputs(s, stderr);

@@ -3,14 +3,10 @@
  *
  *     https://www.msweet.org/codedoc
  *
- * Copyright © 2003-2022 by Michael R Sweet.
+ * Copyright © 2003-2024 by Michael R Sweet.
  *
  * Licensed under Apache License v2.0.  See the file "LICENSE" for more
  * information.
- */
-
-/*
- * Include necessary headers...
  */
 
 #include <mxml.h>
@@ -3323,6 +3319,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		      mxmlDelete(mxmlGetFirstChild(type));
 
 		    mxmlDelete(node);
+		    node = NULL;
 
 		    if (mxmlGetFirstChild(type))
 		      clear_whitespace(mxmlGetFirstChild(type));
@@ -4470,7 +4467,7 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
   	*ptr;				/* Pointer into comment */
 
 
-  DEBUG_printf("update_comment(parent=%p, comment=%p)\n", parent, comment);
+  DEBUG_printf("    update_comment(parent=%p, comment=%p)\n", parent, comment);
 
  /*
   * Range check the input...
@@ -4510,13 +4507,13 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
     * Convert "'name()' - description" to "description".
     */
 
-    DEBUG_puts("    found quote");
+    DEBUG_puts("        found quote");
     for (ptr ++; *ptr && *ptr != '\'' && *ptr != '('; ptr ++)
       ;					// Look for end quote
 
     if (*ptr == '(' && ptr[1] == ')' && ptr[2] == '\'')
     {
-      DEBUG_printf("    comment after quote: %s\n", ptr + 3);
+      DEBUG_printf("        comment after quote: %s\n", ptr + 3);
       ptr += 3;
       while (isspace(*ptr & 255))
         ptr ++;
@@ -4573,7 +4570,7 @@ update_comment(mxml_node_t *parent,	/* I - Parent node */
   for (; ptr > s && isspace(*ptr & 255); ptr --)
     *ptr = '\0';
 
-  DEBUG_printf("    updated comment = %s\n", s);
+  DEBUG_printf("        updated comment = %s\n", s);
 
   mxmlSetOpaque(comment, s);
   free(s);
