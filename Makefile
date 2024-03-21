@@ -3,7 +3,7 @@
 #
 #     https://www.msweet.org/codedoc
 #
-# Copyright © 2003-2022 by Michael R Sweet.
+# Copyright © 2003-2024 by Michael R Sweet.
 #
 # Licensed under Apache License v2.0.  See the file "LICENSE" for more
 # information.
@@ -57,7 +57,7 @@ sanitizer:
 TESTOPTIONS	=	\
 			--author "Michael R Sweet" \
 			--body testfiles/body.md \
-			--copyright "Copyright © 2003-2019 by Michael R Sweet" \
+			--copyright "Copyright © 2003-2024 by Michael R Sweet" \
 			--coverimage codedoc-256.png \
 			--docversion $(VERSION) \
 			--title "Test Documentation" \

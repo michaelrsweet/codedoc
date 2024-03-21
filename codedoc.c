@@ -76,7 +76,8 @@ enum
   HIGHLIGHT_NONE,			/* No highlighting, plain text */
   HIGHLIGHT_COMMENT,			/* Comment text */
   HIGHLIGHT_COMMENT1,			/* One-line comment text */
-  HIGHLIGHT_DIRECTIVE,			/* (Preprocessor) directive text */
+  HIGHLIGHT_DECLARATION,		/* XML/HTML declaration */
+  HIGHLIGHT_DIRECTIVE,			/* Preprocessor directive/processing instruction */
   HIGHLIGHT_NUMBER,			/* Number text */
   HIGHLIGHT_RESERVED,			/* Reserved word text */
   HIGHLIGHT_STRING			/* String literal text */
@@ -191,6 +192,7 @@ static const char	*get_nth_text(mxml_node_t *node, int idx, int *whitespace);
 static char		*get_text(mxml_node_t *node, char *buffer, int buflen);
 static void		highlight_c_string(FILE *fp, const char *s, int *histate);
 static int		highlight_compare(const char **a, const char **b);
+static void		highlight_htmlxml_string(FILE *fp, const char *s, int *histate);
 static char		*html_gets(FILE *fp, char *fragment, size_t fragsize);
 static void		html_unescape(char *s);
 static int		is_markdown(const char *filename);
@@ -2010,6 +2012,336 @@ highlight_compare(const char **a,	/* I - First word */
 
 
 /*
+ * 'highlight_htmlxml_string()' - Output a string of HTML/XML code, highlighting it as needed.
+ */
+
+static void
+highlight_htmlxml_string(
+    FILE       *fp,			/* I  - Output file */
+    const char *s,			/* I  - String */
+    int        *histate)		/* IO - Highlighting state */
+{
+  static const char *class_names[] =	/* CSS class names for each state */
+  {
+    NULL,				/* No highlighting, plain text */
+    "comment",				/* Comment text */
+    NULL,				/* One-line comment text */
+    "declaration",			/* XML/HTML declaration */
+    "directive",			/* Preprocessor directive/processing instruction */
+    NULL,				/* Number text */
+    "reserved",				/* Reserved word text */
+    NULL				/* String literal text */
+  };
+  const char	*start = s,		/* Start of code to highlight */
+		*class_name = class_names[*histate];
+					/* Class name for current fragment */
+
+
+  if (*histate == HIGHLIGHT_COMMENT)
+  {
+    if ((s = strstr(start, "-->")) != NULL)
+    {
+     /*
+      * Comment ends on this line...
+      */
+
+      s += 3;
+
+      fputs("<span class=\"comment\">", fp);
+      write_string(fp, start, OUTPUT_HTML, s - start);
+      fputs("</span>", fp);
+
+      start      = s;
+      *histate   = HIGHLIGHT_NONE;
+      class_name = NULL;
+    }
+    else
+    {
+     /*
+      * Comment continues beyond the current line...
+      */
+
+      s = start + strlen(start) - 1;
+    }
+  }
+  else if (*histate == HIGHLIGHT_DIRECTIVE)
+  {
+    if ((s = strstr(start, "?>")) != NULL)
+    {
+     /*
+      * Processing instruction ends on this line...
+      */
+
+      s += 2;
+
+      fputs("<span class=\"directive\">", fp);
+      write_string(fp, start, OUTPUT_HTML, s - start);
+      fputs("</span>", fp);
+
+      start      = s;
+      *histate   = HIGHLIGHT_NONE;
+      class_name = NULL;
+    }
+    else
+    {
+     /*
+      * Processing instruction continues beyond the current line...
+      */
+
+      s = start + strlen(start) - 1;
+    }
+  }
+  else if (*histate == HIGHLIGHT_RESERVED || *histate == HIGHLIGHT_DECLARATION)
+  {
+    if ((s = strchr(start, '>')) != NULL)
+    {
+     /*
+      * Element/declaration ends on this line...
+      */
+
+      s ++;
+
+      fprintf(fp, "<span class=\"%s\">", class_name);
+      write_string(fp, start, OUTPUT_HTML, s - start);
+      fputs("</span>", fp);
+
+      start      = s;
+      *histate   = HIGHLIGHT_NONE;
+      class_name = NULL;
+    }
+    else
+    {
+     /*
+      * Element/declaration continues beyond the current line...
+      */
+
+      s = start + strlen(start) - 1;
+    }
+  }
+
+  while (*s && *s != '\n')
+  {
+    if (!strncmp(s, "<!--", 4))
+    {
+     /*
+      * Start of a block comment...
+      */
+
+      if (s > start)
+      {
+       /*
+        * Output current fragment...
+        */
+
+	if (class_name)
+	{
+	  fprintf(fp, "<span class=\"%s\">", class_name);
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	  fputs("</span>", fp);
+	}
+	else
+	{
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	}
+
+	start = s;
+      }
+
+     /*
+      * At this point, "start" points to the start of the comment...
+      */
+
+      if ((s = strstr(start, "-->")) != NULL)
+      {
+       /*
+        * Comment ends on the current line...
+        */
+
+        s += 3;
+
+	fputs("<span class=\"comment\">", fp);
+	write_string(fp, start, OUTPUT_HTML, s - start);
+	fputs("</span>", fp);
+
+	start      = s;
+	*histate   = HIGHLIGHT_NONE;
+	class_name = NULL;
+      }
+      else
+      {
+       /*
+        * Comment continues to the next line...
+        */
+
+	s          = start + strlen(start) - 1;
+	*histate   = HIGHLIGHT_COMMENT;
+	class_name = "comment";
+	break;
+      }
+    }
+    else if (!strncmp(s, "<!", 2))
+    {
+     /*
+      * Start of declaration...
+      */
+
+      if (s > start)
+      {
+       /*
+        * Output current fragment...
+        */
+
+	if (class_name)
+	{
+	  fprintf(fp, "<span class=\"%s\">", class_name);
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	  fputs("</span>", fp);
+	}
+	else
+	{
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	}
+
+	start = s;
+      }
+
+      if ((s = strchr(start, '>')) != NULL)
+      {
+        s ++;
+
+	fputs("<span class=\"declaration\">", fp);
+	write_string(fp, start, OUTPUT_HTML, s - start);
+	fputs("</span>", fp);
+
+	start      = s;
+	*histate   = HIGHLIGHT_NONE;
+	class_name = NULL;
+      }
+      else
+      {
+	s          = start + strlen(start) - 1;
+	*histate   = HIGHLIGHT_DECLARATION;
+	class_name = "declaration";
+	break;
+      }
+    }
+    else if (!strncmp(s, "<?", 2))
+    {
+     /*
+      * Start of processing instruction...
+      */
+
+      if (s > start)
+      {
+       /*
+        * Output current fragment...
+        */
+
+	if (class_name)
+	{
+	  fprintf(fp, "<span class=\"%s\">", class_name);
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	  fputs("</span>", fp);
+	}
+	else
+	{
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	}
+
+	start = s;
+      }
+
+      if ((s = strstr(start, "?>")) != NULL)
+      {
+        s += 2;
+
+	fputs("<span class=\"directive\">", fp);
+	write_string(fp, start, OUTPUT_HTML, s - start);
+	fputs("</span>", fp);
+
+	start      = s;
+	*histate   = HIGHLIGHT_NONE;
+	class_name = NULL;
+      }
+      else
+      {
+	s          = start + strlen(start) - 1;
+	*histate   = HIGHLIGHT_DIRECTIVE;
+	class_name = "directive";
+	break;
+      }
+    }
+    else if (*s == '<')
+    {
+     /*
+      * Start of element...
+      */
+
+      if (s > start)
+      {
+       /*
+        * Output current fragment...
+        */
+
+	if (class_name)
+	{
+	  fprintf(fp, "<span class=\"%s\">", class_name);
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	  fputs("</span>", fp);
+	}
+	else
+	{
+	  write_string(fp, start, OUTPUT_HTML, s - start);
+	}
+
+	start = s;
+      }
+
+      if ((s = strchr(start, '>')) != NULL)
+      {
+        s ++;
+
+	fputs("<span class=\"reserved\">", fp);
+	write_string(fp, start, OUTPUT_HTML, s - start);
+	fputs("</span>", fp);
+
+	start      = s;
+	*histate   = HIGHLIGHT_NONE;
+	class_name = NULL;
+      }
+      else
+      {
+	s          = start + strlen(start) - 1;
+	*histate   = HIGHLIGHT_RESERVED;
+	class_name = "reserved";
+	break;
+      }
+    }
+    else
+    {
+      s ++;
+    }
+  }
+
+  if (s > start)
+  {
+    if (class_name)
+    {
+      fprintf(fp, "<span class=\"%s\">", class_name);
+      write_string(fp, start, OUTPUT_HTML, s - start);
+      fputs("</span>", fp);
+    }
+    else
+    {
+      write_string(fp, start, OUTPUT_HTML, s - start);
+    }
+  }
+
+  putc('\n', fp);
+}
+
+
+/*
  * 'html_gets()' - Get a HTML fragment.
  *
  * Returns a HTML fragment like "<element attr='value'>", "some text", and
@@ -2429,6 +2761,8 @@ markdown_write_block(FILE  *out,	/* I - Output file */
           {
             if (class_name && (!strcmp(class_name, "c") || !strcmp(class_name, "cpp")))
               highlight_c_string(out, mmdGetText(node), &histate);
+            else if (class_name && (!strcmp(class_name, "html") || !strcmp(class_name, "xml")))
+              highlight_htmlxml_string(out, mmdGetText(node), &histate);
             else
               write_string(out, mmdGetText(node), mode, 0);
 	  }
@@ -6411,6 +6745,9 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "/* Syntax highlighting */\n"
 	  "span.comment {\n"
 	  "  color: darkgreen;\n"
+	  "}\n"
+	  "span.declaration {\n"
+	  "  color: red;\n"
 	  "}\n"
 	  "span.directive {\n"
 	  "  color: purple;\n"
