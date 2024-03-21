@@ -1,4 +1,6 @@
 *.o
+Makefile
+autom4te.cache
 codedoc
 codedoc.html
 test.epub
