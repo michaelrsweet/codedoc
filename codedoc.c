@@ -10,6 +10,7 @@
  */
 
 #include <mxml.h>
+#include <stdbool.h>
 #include "mmd.h"
 #include "zipc.h"
 #include <time.h>
@@ -105,6 +106,26 @@ const int	TRADEMARK_UTF8_LEN = 3;
 
 
 /*
+ * Reserved words for C/C++...
+ */
+
+static const char * const reserved_words[] =	/* Reserved words */
+{
+  "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break",
+  "case", "catch", "char", "class", "compl", "const", "const_cast",
+  "continue", "default", "delete", "do", "double", "dynamic_cast",
+  "else", "enum", "explicit", "extern", "false", "float", "for",
+  "friend", "goto", "if", "inline", "int", "long", "mutable",
+  "namespace", "new", "not", "not_eq", "operator", "or", "or_eq",
+  "private", "protected", "public", "register", "reinterpret_cast",
+  "return", "short", "signed", "sizeof", "static", "static_cast",
+  "struct", "switch", "template", "this", "throw", "true", "try",
+  "typedef", "typename", "union", "unsigned", "virtual", "void",
+  "volatile", "while", "xor", "xor_eq"
+};
+
+
+/*
  * Local types...
  */
 
@@ -191,16 +212,18 @@ static mxml_node_t	*get_nth_child(mxml_node_t *node, int idx);
 static const char	*get_nth_text(mxml_node_t *node, int idx, int *whitespace);
 static char		*get_text(mxml_node_t *node, char *buffer, int buflen);
 static void		highlight_c_string(FILE *fp, const char *s, int *histate);
-static int		highlight_compare(const char **a, const char **b);
 static void		highlight_htmlxml_string(FILE *fp, const char *s, int *histate);
+static void		highlight_string(FILE *fp, const char *start, const char *end, const char *class_name);
 static char		*html_gets(FILE *fp, char *fragment, size_t fragsize);
 static void		html_unescape(char *s);
-static int		is_markdown(const char *filename);
+static bool		is_markdown(const char *filename);
+static bool		is_reserved(const char *word);
 static mxml_type_t	load_cb(mxml_node_t *node);
 static const char	*markdown_anchor(const char *text);
 static void		markdown_write_block(FILE *out, mmd_t *parent, int mode);
 static void		markdown_write_leaf(FILE *out, mmd_t *node, int mode);
 static mxml_node_t	*new_documentation(mxml_node_t **codedoc);
+static int		reserved_compare(const char **a, const char **b);
 static void		safe_strcpy(char *dst, const char *src);
 static int		scan_file(filebuf_t *file, mxml_node_t *doc, const char *nsname, mmd_t **body);
 static void		sort_node(mxml_node_t *tree, mxml_node_t *func);
@@ -1674,20 +1697,6 @@ highlight_c_string(FILE       *fp,	/* I  - Output file */
 					/* Class name for current fragment */
   char		keyword[32],		/* Current keyword */
 		*keyptr = keyword;	/* Pointer into keyword */
-  static const char * const words[] =	/* Reserved words */
-  {
-    "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break",
-    "case", "catch", "char", "class", "compl", "const", "const_cast",
-    "continue", "default", "delete", "do", "double", "dynamic_cast",
-    "else", "enum", "explicit", "extern", "false", "float", "for",
-    "friend", "goto", "if", "inline", "int", "long", "mutable",
-    "namespace", "new", "not", "not_eq", "operator", "or", "or_eq",
-    "private", "protected", "public", "register", "reinterpret_cast",
-    "return", "short", "signed", "sizeof", "static", "static_cast",
-    "struct", "switch", "template", "this", "throw", "true", "try",
-    "typedef", "typename", "union", "unsigned", "virtual", "void",
-    "volatile", "while", "xor", "xor_eq"
-  };
 
 
   if (*histate == HIGHLIGHT_COMMENT)
@@ -1927,7 +1936,7 @@ highlight_c_string(FILE       *fp,	/* I  - Output file */
         *keyptr = '\0';
         keyptr  = keyword;
 
-        if (bsearch(&keyptr, words, sizeof(words) / sizeof(words[0]), sizeof(const char *), (int (*)(const void *, const void *))highlight_compare))
+        if (is_reserved(keyword))
         {
          /*
           * Yes, reserved word...
@@ -1967,7 +1976,7 @@ highlight_c_string(FILE       *fp,	/* I  - Output file */
       *keyptr = '\0';
       keyptr  = keyword;
 
-      if (bsearch(&keyptr, words, sizeof(words) / sizeof(words[0]), sizeof(const char *), (int (*)(const void *, const void *))highlight_compare))
+      if (is_reserved(keyword))
       {
        /*
 	* Yes, reserved word...
@@ -2000,18 +2009,6 @@ highlight_c_string(FILE       *fp,	/* I  - Output file */
 
 
 /*
- * 'highlight_compare()' - Compare two reserved words.
- */
-
-static int				/* O - Result of comparison */
-highlight_compare(const char **a,	/* I - First word */
-                    const char **b)	/* I - Second word */
-{
-  return (strcmp(*a, *b));
-}
-
-
-/*
  * 'highlight_htmlxml_string()' - Output a string of HTML/XML code, highlighting it as needed.
  */
 
@@ -2026,7 +2023,7 @@ highlight_htmlxml_string(
     NULL,				/* No highlighting, plain text */
     "comment",				/* Comment text */
     NULL,				/* One-line comment text */
-    "declaration",			/* XML/HTML declaration */
+    "directive",			/* XML/HTML declaration */
     "directive",			/* Preprocessor directive/processing instruction */
     NULL,				/* Number text */
     "reserved",				/* Reserved word text */
@@ -2074,9 +2071,7 @@ highlight_htmlxml_string(
 
       s += 2;
 
-      fputs("<span class=\"directive\">", fp);
-      write_string(fp, start, OUTPUT_HTML, s - start);
-      fputs("</span>", fp);
+      highlight_string(fp, start, s, class_name);
 
       start      = s;
       *histate   = HIGHLIGHT_NONE;
@@ -2101,9 +2096,7 @@ highlight_htmlxml_string(
 
       s ++;
 
-      fprintf(fp, "<span class=\"%s\">", class_name);
-      write_string(fp, start, OUTPUT_HTML, s - start);
-      fputs("</span>", fp);
+      highlight_string(fp, start, s, class_name);
 
       start      = s;
       *histate   = HIGHLIGHT_NONE;
@@ -2209,9 +2202,7 @@ highlight_htmlxml_string(
       {
         s ++;
 
-	fputs("<span class=\"declaration\">", fp);
-	write_string(fp, start, OUTPUT_HTML, s - start);
-	fputs("</span>", fp);
+        highlight_string(fp, start, s, "declaration");
 
 	start      = s;
 	*histate   = HIGHLIGHT_NONE;
@@ -2255,9 +2246,8 @@ highlight_htmlxml_string(
       {
         s += 2;
 
-	fputs("<span class=\"directive\">", fp);
-	write_string(fp, start, OUTPUT_HTML, s - start);
-	fputs("</span>", fp);
+
+        highlight_string(fp, start, s, "directive");
 
 	start      = s;
 	*histate   = HIGHLIGHT_NONE;
@@ -2301,9 +2291,7 @@ highlight_htmlxml_string(
       {
         s ++;
 
-	fputs("<span class=\"reserved\">", fp);
-	write_string(fp, start, OUTPUT_HTML, s - start);
-	fputs("</span>", fp);
+        highlight_string(fp, start, s, "reserved");
 
 	start      = s;
 	*histate   = HIGHLIGHT_NONE;
@@ -2326,18 +2314,61 @@ highlight_htmlxml_string(
   if (s > start)
   {
     if (class_name)
-    {
-      fprintf(fp, "<span class=\"%s\">", class_name);
-      write_string(fp, start, OUTPUT_HTML, s - start);
-      fputs("</span>", fp);
-    }
+      highlight_string(fp, start, s, class_name);
     else
-    {
       write_string(fp, start, OUTPUT_HTML, s - start);
-    }
   }
 
   putc('\n', fp);
+}
+
+
+/*
+ * 'highlight_string()' - Highlight quoted strings.
+ */
+
+static void
+highlight_string(FILE       *fp,	/* I - Output file */
+                 const char *start,	/* I - Start of substring */
+                 const char *end,	/* I - End of substring */
+                 const char *class_name)/* I - Class name for main content */
+{
+  const char	*ptr;			/* Pointer into substring */
+
+
+  for (ptr = start; ptr < end; ptr ++)
+  {
+    if (*ptr == '\'' || *ptr == '\"')
+    {
+      if (ptr > start)
+      {
+	fprintf(fp, "<span class=\"%s\">", class_name);
+	write_string(fp, start, OUTPUT_HTML, ptr - start);
+	fputs("</span>", fp);
+      }
+
+      start = ptr;
+
+      for (ptr ++; ptr < end && *ptr != *start; ptr ++)
+        ;				/* Loop until close quote */
+
+      if (ptr < end)
+        ptr ++;
+
+      fputs("<span class=\"string\">", fp);
+      write_string(fp, start, OUTPUT_HTML, ptr - start);
+      fputs("</span>", fp);
+
+      start = ptr;
+    }
+  }
+
+  if (ptr > start)
+  {
+    fprintf(fp, "<span class=\"%s\">", class_name);
+    write_string(fp, start, OUTPUT_HTML, ptr - start);
+    fputs("</span>", fp);
+  }
 }
 
 
@@ -2573,13 +2604,24 @@ html_unescape(char *buffer)		/* I - Buffer */
  * 'is_markdown()' - Determine whether a file is markdown text.
  */
 
-static int				/* O - 1 if markdown, 0 otherwise */
+static bool				/* O - `true` if markdown, `false` otherwise */
 is_markdown(const char *filename)	/* I - File to check */
 {
   const char	*ext = filename ? strstr(filename, ".md") : NULL;
 					/* Pointer to extension */
 
   return (ext && !ext[3]);
+}
+
+
+/*
+ * 'is_reserved()' - Determine whether a word is a C/C++ reserved word.
+ */
+
+static bool				/* O - `true` if reserved, `false` otherwise */
+is_reserved(const char *word)		/* I - Word */
+{
+  return (bsearch(&word, reserved_words, sizeof(reserved_words) / sizeof(reserved_words[0]), sizeof(const char *), (int (*)(const void *, const void *))reserved_compare) != NULL);
 }
 
 
@@ -3103,6 +3145,18 @@ new_documentation(mxml_node_t **codedoc)/* O - codedoc node */
   mxmlElementSetAttr(*codedoc, "xsi:schemaLocation", "https://www.msweet.org/codedoc/codedoc.xsd");
 
   return (doc);
+}
+
+
+/*
+ * 'reserved_compare()' - Compare two reserved words.
+ */
+
+static int				/* O - Result of comparison */
+reserved_compare(const char **a,	/* I - First word */
+		 const char **b)	/* I - Second word */
+{
+  return (strcmp(*a, *b));
 }
 
 
@@ -5470,8 +5524,16 @@ write_element(FILE        *out,		/* I - Output file */
         write_string(out, string, mode, 0);
 	fputs("</a>", out);
       }
-      else
+      else if ((mode == OUTPUT_HTML || mode == OUTPUT_EPUB) && is_reserved(string))
+      {
+        fputs("<span class=\"reserved\">", out);
         write_string(out, string, mode, 0);
+        fputs("</span>", out);
+      }
+      else
+      {
+        write_string(out, string, mode, 0);
+      }
     }
   }
 
@@ -6020,7 +6082,7 @@ write_function(FILE        *out,	/* I - Output file */
   if (arg)
     write_element(out, doc, mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST), OUTPUT_HTML);
   else
-    fputs("void ", out);
+    fputs("<span class=\"reserved\">void</span> ", out);
 
   fputs(name, out);
   for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = "("; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_NO_DESCEND), prefix = ", ")
@@ -6033,11 +6095,21 @@ write_function(FILE        *out,	/* I - Output file */
 
     fputs(mxmlElementGetAttr(arg, "name"), out);
     if ((defval = mxmlElementGetAttr(arg, "default")) != NULL)
-      fprintf(out, " %s", defval);
+    {
+      if (!strncmp(defval, "= ", 2))
+        defval += 2;
+
+      if (isdigit(*defval) || *defval == '-' || *defval == '.')
+        fprintf(out, " = <span class=\"number\">%s</span>", defval);
+      else if (*defval == '\'' || *defval == '\"')
+        fprintf(out, " = <span class=\"string\">%s</span>", defval);
+      else
+	fprintf(out, " = %s", defval);
+    }
   }
 
   if (!strcmp(prefix, "("))
-    fputs("(void);</p>\n", out);
+    fputs("(<span class=\"reserved\">void</span>);</p>\n", out);
   else
   {
     fprintf(out,
@@ -6746,17 +6818,14 @@ write_html_head(FILE       *out,	/* I - Output file */
 	  "span.comment {\n"
 	  "  color: darkgreen;\n"
 	  "}\n"
-	  "span.declaration {\n"
-	  "  color: red;\n"
-	  "}\n"
 	  "span.directive {\n"
-	  "  color: purple;\n"
+	  "  color: red;\n"
 	  "}\n"
 	  "span.number {\n"
 	  "  color: brown;\n"
 	  "}\n"
 	  "span.reserved {\n"
-	  "  color: darkcyan;\n"
+	  "  color: blue;\n"
 	  "}\n"
 	  "span.string {\n"
 	  "  color: magenta;\n"
@@ -7408,9 +7477,14 @@ write_scu(FILE        *out,	/* I - Output file */
   if (description)
     write_description(out, mode, description, "p", 1);
 
-  fprintf(out, "<p class=\"code\">%s %s", mxmlGetElement(scut), cname);
+  fprintf(out, "<p class=\"code\"><span class=\"reserved\">%s</span> %s", mxmlGetElement(scut), cname);
   if ((parent = mxmlElementGetAttr(scut, "parent")) != NULL)
-    fprintf(out, " %s", parent);
+  {
+    if (!strncmp(parent, ": ", 2) && is_reserved(parent + 2))
+      fprintf(out, " : <span class=\"reserved\">%s</span>", parent + 2);
+    else
+      fprintf(out, " %s", parent);
+  }
   fprintf(out, " {%s\n", br);
 
   maxscope = !strcmp(mxmlGetElement(scut), "class") ? 3 : 1;
@@ -7427,7 +7501,7 @@ write_scu(FILE        *out,	/* I - Output file */
       if (!inscope)
       {
 	inscope = 1;
-	fprintf(out, "&#160;&#160;%s:%s\n", scopes[i], br);
+	fprintf(out, "&#160;&#160;<span class=\"reserved\">%s</span>:%s\n", scopes[i], br);
       }
 
       fputs("&#160;&#160;&#160;&#160;", out);
@@ -7443,7 +7517,7 @@ write_scu(FILE        *out,	/* I - Output file */
       if (!inscope)
       {
 	inscope = 1;
-        fprintf(out, "&#160;&#160;%s:%s\n", scopes[i], br);
+        fprintf(out, "&#160;&#160;<span class=\"reserved\">%s</span>:%s\n", scopes[i], br);
       }
 
       name = mxmlElementGetAttr(function, "name");
@@ -7455,7 +7529,7 @@ write_scu(FILE        *out,	/* I - Output file */
       if (arg)
 	write_element(out, doc, mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST), OUTPUT_HTML);
       else if (strcmp(cname, name) && strcmp(cname, name + 1))
-	fputs("void ", out);
+	fputs("<span class=\"reserved\">void</span> ", out);
 
       fprintf(out, "<a href=\"#%s.%s\">%s</a>", cname, name, name);
 
@@ -7476,7 +7550,7 @@ write_scu(FILE        *out,	/* I - Output file */
       }
 
       if (prefix == '(')
-	fprintf(out, "(void);%s\n", br);
+	fprintf(out, "(<span class=\"reserved\">void</span>);%s\n", br);
       else
 	fprintf(out, ");%s\n", br);
     }

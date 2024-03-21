@@ -16,7 +16,7 @@
  *
  * ```c
  * void
- * foo(int one)    * I - Integer
+ * foo(int one)    // I - Integer
  * {
  *   ...
  * }

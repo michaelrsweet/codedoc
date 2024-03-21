@@ -27,7 +27,7 @@ Here is some sample C code using the built-in syntax highlighting:
  *
  * This is a code example:
  *
- * ```
+ * ```c
  * | foo_void_function(1, 2.0f, "3");
  * |
  * | if (bar)
