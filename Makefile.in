@@ -1,0 +1,147 @@
+#
+# Makefile for codedoc, a code documentation utility.
+#
+#     https://www.msweet.org/codedoc
+#
+# Copyright © 2003-2024 by Michael R Sweet.
+#
+# Licensed under Apache License v2.0.  See the file "LICENSE" for more
+# information.
+#
+
+
+# POSIX makefile
+.POSIX:
+
+
+# Build silently
+.SILENT:
+
+
+# Version number...
+VERSION	=	@VERSION@
+
+
+# Programs and options...
+ASAN_OPTIONS	=	leak_check_at_exit=false
+CC		=	@CC@
+CFLAGS		=	-I.. @CFLAGS@ $(CPPFLAGS) $(OPTIM) $(WARNINGS)
+CPPFLAGS	=	@CPPFLAGS@ '-DVERSION="$(VERSION)"'
+CSFLAGS		=	-s "$${CODESIGN_IDENTITY:=-}" --timestamp @CSFLAGS@
+INSTALL		=	@INSTALL@
+LDFLAGS		=	@LDFLAGS@ $(OPTIM)
+LIBS		=	@LIBS@ -lm
+MKDIR		=	@MKDIR@ -p
+OPTIM		=	@OPTIM@
+RM		=	@RM@ -f
+SHELL		=	/bin/sh
+WARNINGS	=	@WARNINGS@
+
+
+# Directories...
+bindir		=	@bindir@
+datadir		=	@datadir@
+datarootdir	=	@datarootdir@
+docdir		=	@docdir@
+exec_prefix	=	@exec_prefix@
+includedir	=	@includedir@
+infodir		=	@infodir@
+libdir		=	@libdir@
+libexecdir	=	@libexecdir@
+localstatedir	=	@localstatedir@
+mandir		=	@mandir@
+oldincludedir	=	@oldincludedir@
+prefix		=	@prefix@
+privateinclude	=	@privateinclude@
+sbindir		=	@sbindir@
+sharedstatedir	=	@sharedstatedir@
+srcdir		=	@srcdir@
+sysconfdir	=	@sysconfdir@
+top_srcdir	=	@top_srcdir@
+unitdir		=	@unitdir@
+
+BUILDROOT	=	${DSTROOT}${RPM_BUILD_ROOT}${DESTDIR}
+
+
+# Project targets...
+DOCFILES	=	\
+			codedoc.html \
+			codedoc-256.png
+DOCOPTIONS	=	\
+			--author "Michael R Sweet" \
+			--copyright "Copyright © 2003-2024 by Michael R Sweet" \
+			--coverimage codedoc-256.png \
+			--docversion $(VERSION)
+OBJS		=	\
+			codedoc.o \
+			mmd.o \
+			zipc.o
+TARGETS		=	\
+			codedoc \
+			codedoc.html
+
+
+# General build rules...
+.SUFFIXES:	.c .o
+.c.o:
+	echo "Compiling $<..."
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+
+# Build targets...
+all:		$(TARGETS)
+
+clean:
+	echo "Cleaning all output..."
+	rm -f $(TARGETS) $(OBJS)
+
+
+install:	$(TARGETS)
+	echo "Installing program to $(BUILDROOT)$(bindir)..."
+	$(INSTALL) -d -m 755 $(BUILDROOT)$(bindir)
+	$(INSTALL) -c -m 755 codedoc $(BUILDROOT)$(bindir)
+	echo "Installing documentation to $(BUILDROOT)$(mandir)..."
+	$(INSTALL) -d -m 755 $(BUILDROOT)$(mandir)/man1
+	$(INSTALL) -c -m 644 codedoc.1 $(BUILDROOT)$(mandir)/man1
+	echo "Installing documentation to $(BUILDROOT)$(docdir)..."
+	$(INSTALL) -d -m 755 $(BUILDROOT)$(docdir)
+	for file in $(DOCFILES); do \
+		$(INSTALL) -c -m 644 $$file $(BUILDROOT)$(docdir); \
+	done
+
+
+cppcheck:
+	cppcheck --template=gcc --addon=cert.py --suppress=cert-MSC24-C --suppress=cert-EXP05-C --suppress=cert-API01-C --suppress=cert-INT31-c --suppress=cert-STR05-C $(OBJS:.o=.c) 2>cppcheck.log
+	@test -s cppcheck.log && (echo ""; echo "Errors detected:"; echo ""; cat cppcheck.log; exit 1) || exit 0
+
+
+TESTOPTIONS	=	\
+			--body testfiles/body.md \
+			--title "Test Documentation" \
+			--footer DOCUMENTATION.md
+
+test:		codedoc
+	echo "Running tests..."
+	rm -f test.xml
+	./codedoc $(DOCOPTIONS) $(TESTOPTIONS) test.xml testfiles/*.cxx >test.html
+	./codedoc $(DOCOPTIONS) $(TESTOPTIONS) --man test test.xml >test.man
+	./codedoc $(DOCOPTIONS) $(TESTOPTIONS) --epub test.epub test.xml
+
+
+codedoc:	$(OBJS)
+	echo "Linking $@..."
+	$(CC) $(LDFLAGS) -o codedoc $(OBJS) $(LIBS)
+	if test `uname` = Darwin; then \
+	    echo "Code-signing $@..."; \
+	    codesign $(CSFLAGS) --prefix org.msweet. $@; \
+	fi
+
+codedoc.html:	codedoc DOCUMENTATION.md
+	./codedoc $(DOCOPTIONS) --body DOCUMENTATION.md >codedoc.html
+
+
+# Dependencies...
+$(OBJS):	Makefile
+codedoc.o:	mmd.h zipc.h
+mmd.o:		mmd.h
+zipc.o:		zipc.h
