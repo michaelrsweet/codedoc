@@ -279,8 +279,8 @@ main(int  argc,				/* I - Number of command-line args */
 		*title = NULL,		/* Title of documentation */
 		*xmlfile = NULL;	/* XML file */
   mmd_t		*body = NULL;		/* Body markdown file, if any */
-  int		mode = OUTPUT_HTML,	/* Output mode */
-		update = 0;		/* Updated XML file */
+  int		mode = OUTPUT_HTML;	/* Output mode */
+  bool		update = false;		/* Updated XML file */
 
 
  /*
@@ -534,7 +534,7 @@ main(int  argc,				/* I - Number of command-line args */
         * Load source file...
 	*/
 
-        update = 1;
+        update = true;
 
 	if (!doc)
 	  doc = new_documentation(&codedoc);

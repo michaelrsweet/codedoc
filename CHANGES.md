@@ -5,6 +5,8 @@ Changes in Codedoc
 Changes in v3.7
 ---------------
 
+- Now require Mini-XML 4.x.
+- Now include a configure script.
 - Added quoting of "." and "'" at the beginning of lines and now use the ".IP"
   macro instead of ".IN" in man output (Issue #12)
 - Added support for `@body@` comment directive to add body text inline with code

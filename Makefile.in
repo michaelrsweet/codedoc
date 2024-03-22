@@ -137,6 +137,7 @@ codedoc:	$(OBJS)
 	fi
 
 codedoc.html:	codedoc DOCUMENTATION.md
+	echo "Formatting $@..."
 	./codedoc $(DOCOPTIONS) --body DOCUMENTATION.md >codedoc.html
 
 

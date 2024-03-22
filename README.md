@@ -19,9 +19,13 @@ utility.
 Building Codedoc
 ----------------
 
-Codedoc comes with a simple makefile that will work on most Linux/UNIX systems
-and macOS, and depends on ZLIB.  Type `make` to build the software:
+Codedoc comes with the usual configure script and makefile that will work on
+most Linux/UNIX systems and macOS.  Prerequisites include ZLIB 1.1 or later and
+Mini-XML 4.x.
 
+Run the following commands to build the software:
+
+    ./configure
     make
 
 

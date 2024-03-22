@@ -1,7 +1,7 @@
 ---
 title: How to Use the codedoc Utility
 author: Michael R Sweet
-copyright: Copyright © 2003-2022 by Michael R Sweet
+copyright: Copyright © 2003-2024 by Michael R Sweet
 version: 3.7
 ...
 
@@ -128,8 +128,8 @@ exceptions:
 - Support for `::WIDTHxHEIGHT`, `::WIDTHx`, and `::xHEIGHT` in image (ALT) text
   to scale images to the specified size.
 
-- Support for the "c" and "cpp" languages for syntax highlighting in fenced
-  code text.
+- Support for the "c", "cpp", "html", and "xml" languages for syntax
+  highlighting in fenced code text.
 
 - Support for tables as used by the
   [Github Flavored Markdown Spec](https://github.github.com/gfm).
