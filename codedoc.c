@@ -193,6 +193,13 @@ static size_t codedoc_strlcpy(char *dst, const char *src, size_t dstsize)
 
 
 /*
+ * Local global...
+ */
+
+static mxml_node_t	*Garbage;	/* Dump node for nodes we want to delete */
+
+
+/*
  * Local functions...
  */
 
@@ -283,6 +290,12 @@ main(int  argc,				/* I - Number of command-line args */
   int		mode = OUTPUT_HTML;	/* Output mode */
   bool		update = false;		/* Updated XML file */
 
+
+ /*
+  * Create a node to hold all "deleted" nodes...
+  */
+
+  Garbage = mxmlNewElement(/*parent*/NULL, "garbage");
 
  /*
   * Check arguments...
@@ -654,6 +667,7 @@ main(int  argc,				/* I - Number of command-line args */
 
   mxmlOptionsDelete(options);
   mxmlDelete(doc);
+  mxmlDelete(Garbage);
 
   return (ret);
 }
@@ -915,7 +929,7 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
       strlcpy(bufptr, string, sizeof(buffer) - (size_t)(bufptr - buffer));
 
       next = mxmlGetNextSibling(node);
-      mxmlDelete(node);
+      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, node);
       node = next;
     }
 
@@ -951,7 +965,7 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
       strlcpy(bufptr, string, sizeof(buffer) - (size_t)(bufptr - buffer));
 
       next = mxmlGetNextSibling(node);
-      mxmlDelete(node);
+      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, node);
       node = next;
     }
   }
@@ -962,7 +976,7 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
     */
 
     strlcpy(buffer, string, sizeof(buffer));
-    mxmlDelete(mxmlGetLastChild(type));
+    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetLastChild(type));
   }
 
  /*
@@ -3589,7 +3603,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 
 	        state = STATE_PREPROCESSOR;
 	        while (mxmlGetFirstChild(comment))
-	          mxmlDelete(mxmlGetFirstChild(comment));
+	          mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(comment));
 		break;
 
             case '\'' :			/* Character constant */
@@ -3611,7 +3625,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
                 {
                   if (!scan_file(file, tree, nsnamestr, body))
 		  {
-		    mxmlDelete(comment);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, comment);
 		    return (0);
 		  }
 
@@ -3643,7 +3657,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 
                     DEBUG_puts("    DELETING STATIC FUNCTION\n");
 
-                    mxmlDelete(function);
+                    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, function);
                   }
                   else if (fstructclass)
 		  {
@@ -3667,7 +3681,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
                     DEBUG_puts("    starting typedef...\n");
 
 		    typedefnode = mxmlNewElement(/*parent*/NULL, "typedef");
-		    mxmlDelete(mxmlGetFirstChild(type));
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(type));
 
 		    string      = next_string;
 		    next_string = get_nth_text(type, 1, NULL);
@@ -3720,18 +3734,18 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		      strlcpy(tempptr, string, sizeof(temp) - (size_t)(tempptr - temp));
 
 		      next = mxmlGetNextSibling(node);
-		      mxmlDelete(node);
+		      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, node);
 		      node = next;
 		    }
 
 		    mxmlElementSetAttr(structclass, "parent", temp);
 
-		    mxmlDelete(type);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 		    type = NULL;
 		  }
 		  else
 		  {
-		    mxmlDelete(type);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 		    type = NULL;
 		  }
 
@@ -3759,7 +3773,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 
                   if (!scan_file(file, structclass, nsname, body))
 		  {
-		    mxmlDelete(comment);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, comment);
 		    return (0);
 		  }
 
@@ -3779,7 +3793,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
                     DEBUG_puts("    starting typedef...\n");
 
 		    typedefnode = mxmlNewElement(/*parent*/NULL, "typedef");
-		    mxmlDelete(mxmlGetFirstChild(type));
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(type));
 		    string      = next_string;
 		    next_string = get_nth_text(type, 1, NULL);
 		  }
@@ -3809,7 +3823,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  }
                   else
 		  {
-		    mxmlDelete(type);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 		    type = NULL;
 		  }
 
@@ -3839,13 +3853,13 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
                 {
                   if (!scan_file(file, tree, nsname, body))
 		  {
-		    mxmlDelete(comment);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, comment);
 		    return (0);
 		  }
                 }
 		else if (type)
 		{
-		  mxmlDelete(type);
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 		  type = NULL;
 		}
 
@@ -3872,12 +3886,12 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  if (braces == 0)
 		  {
 		    while (mxmlGetFirstChild(comment))
-		      mxmlDelete(mxmlGetFirstChild(comment));
+		      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(comment));
 		  }
 		}
 		else
 		{
-		  mxmlDelete(comment);
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, comment);
 		  return (1);
 		}
 		break;
@@ -3910,7 +3924,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  if ((child = mxmlGetFirstChild(type)) != NULL && mxmlGetNextSibling(child))
 		    variable = add_variable(function, "argument", type);
 		  else
-		    mxmlDelete(type);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 
 		  type = NULL;
 		}
@@ -3937,7 +3951,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 
                     DEBUG_puts("    DELETING STATIC FUNCTION\n");
 
-                    mxmlDelete(function);
+                    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, function);
                   }
                   else if (!strcmp(mxmlGetElement(tree), "class"))
 		  {
@@ -3945,7 +3959,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    sort_node(tree, function);
 		  }
 		  else
-		    mxmlDelete(function);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, function);
 
 		  function    = NULL;
 		  variable    = NULL;
@@ -3987,9 +4001,9 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    sort_node(tree, typedefnode);
 
                     if (mxmlGetFirstChild(type) != node)
-		      mxmlDelete(mxmlGetFirstChild(type));
+		      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(type));
 
-		    mxmlDelete(node);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, node);
 		    node = NULL;
 
 		    if (mxmlGetFirstChild(type))
@@ -4011,7 +4025,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 
 		    mxmlElementSetAttr(typedefnode, "name", mxmlGetText(node, NULL));
 		    sort_node(tree, typedefnode);
-		    mxmlDelete(type);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 
 		    type = mxmlNewElement(typedefnode, "type");
                     mxmlNewText(type, 0, "enum");
@@ -4021,7 +4035,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    break;
 		  }
 
-		  mxmlDelete(type);
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 		  type = NULL;
 		}
 		break;
@@ -4130,7 +4144,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		      {
 			DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", mxmlGetFirstChild(comment), mxmlGetFirstChild(comment) ? get_nth_text(comment, 0, NULL) : "", mxmlGetLastChild(comment), mxmlGetLastChild(comment) ? get_nth_text(comment, -1, NULL) : "");
 
-			mxmlDelete(mxmlGetFirstChild(comment));
+			mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(comment));
 
 			DEBUG_printf("    new comment %p, last comment %p...\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
 		      }
@@ -4145,7 +4159,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 			  * Delete private variables...
 			  */
 
-			  mxmlDelete(variable);
+			  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, variable);
 			}
 			else
 			{
@@ -4167,7 +4181,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 			  * Delete private constants...
 			  */
 
-			  mxmlDelete(constant);
+			  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, constant);
 			}
 			else
 			{
@@ -4189,17 +4203,17 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 			  * Delete private typedefs...
 			  */
 
-			  mxmlDelete(typedefnode);
+			  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, typedefnode);
 
 			  if (structclass)
 			  {
-			    mxmlDelete(structclass);
+			    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, structclass);
 			    structclass = NULL;
 			  }
 
 			  if (enumeration)
 			  {
-			    mxmlDelete(enumeration);
+			    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, enumeration);
 			    enumeration = NULL;
 			  }
 			}
@@ -4297,7 +4311,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  {
 		    DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", mxmlGetFirstChild(comment), mxmlGetFirstChild(comment) ? get_nth_text(comment, 0, NULL) : "", mxmlGetLastChild(comment), mxmlGetLastChild(comment) ? get_nth_text(comment, -1, NULL) : "");
 
-		    mxmlDelete(mxmlGetFirstChild(comment));
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(comment));
 
 		    DEBUG_printf("    new comment %p, last comment %p...\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
 		  }
@@ -4312,7 +4326,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		      * Delete private variables...
 		      */
 
-		      mxmlDelete(variable);
+		      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, variable);
 		    }
 		    else
 		    {
@@ -4334,7 +4348,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		      * Delete private constants...
 		      */
 
-		      mxmlDelete(constant);
+		      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, constant);
 		    }
 		    else
 		    {
@@ -4356,17 +4370,17 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		      * Delete private typedefs...
 		      */
 
-		      mxmlDelete(typedefnode);
+		      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, typedefnode);
 
 		      if (structclass)
 		      {
-			mxmlDelete(structclass);
+			mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, structclass);
 			structclass = NULL;
 		      }
 
 		      if (enumeration)
 		      {
-			mxmlDelete(enumeration);
+			mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, enumeration);
 			enumeration = NULL;
 		      }
 		    }
@@ -4449,7 +4463,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 	    {
 	      DEBUG_printf("    removing comment %p(%20.20s), last comment %p(%20.20s)...\n", mxmlGetFirstChild(comment), mxmlGetFirstChild(comment) ? get_nth_text(comment, 0, NULL) : "", mxmlGetLastChild(comment), mxmlGetLastChild(comment) ? get_nth_text(comment, -1, NULL) : "");
 
-	      mxmlDelete(mxmlGetFirstChild(comment));
+	      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(comment));
 
 	      DEBUG_printf("    new comment %p, last comment %p...\n", mxmlGetFirstChild(comment), mxmlGetLastChild(comment));
 	    }
@@ -4462,7 +4476,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		* Delete private variables...
 		*/
 
-		mxmlDelete(variable);
+		mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, variable);
 	      }
 	      else
 	      {
@@ -4484,7 +4498,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		* Delete private constants...
 		*/
 
-		mxmlDelete(constant);
+		mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, constant);
 	      }
 	      else
 	      {
@@ -4506,17 +4520,17 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		* Delete private typedefs...
 		*/
 
-		mxmlDelete(typedefnode);
+		mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, typedefnode);
 
 		if (structclass)
 		{
-		  mxmlDelete(structclass);
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, structclass);
 		  structclass = NULL;
 		}
 
 		if (enumeration)
 		{
-		  mxmlDelete(enumeration);
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, enumeration);
 		  enumeration = NULL;
 		}
 	      }
@@ -4666,7 +4680,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  * Remove external declarations...
 		  */
 
-		  mxmlDelete(type);
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 		  type = NULL;
 		  break;
 		}
@@ -4720,7 +4734,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  mxmlAdd(description, MXML_ADD_AFTER, /*parent*/NULL, mxmlGetLastChild(comment));
                 }
 		else
-		  mxmlDelete(type);
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 
 		description = mxmlNewElement(function, "description");
 
@@ -4748,7 +4762,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 	          variable = add_variable(function, "argument", type);
 		}
 		else
-		  mxmlDelete(type);
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 
 		type = NULL;
 	      }
@@ -4792,7 +4806,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    if (typedefnode)
 		      mxmlAdd(typedefnode, MXML_ADD_BEFORE, /*parent*/NULL, type);
 		    else
-		      mxmlDelete(type);
+		      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 		  }
 
 		  type        = NULL;
@@ -4811,7 +4825,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    mxmlElementSetAttrf(typedefnode, "name", "%s::%s", nsname, str);
 		  else
 		    mxmlElementSetAttr(typedefnode, "name", str);
-		  mxmlDelete(mxmlGetFirstChild(type));
+		  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, mxmlGetFirstChild(type));
 
 		  sort_node(tree, typedefnode);
 
@@ -4837,7 +4851,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    * Remove static functions...
 		    */
 
-		    mxmlDelete(type);
+		    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 		    type = NULL;
 		    break;
 		  }
@@ -4882,7 +4896,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 	    }
 	    else if (type)
 	    {
-	      mxmlDelete(type);
+	      mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, type);
 	      type = NULL;
 	    }
 	  }
@@ -4906,7 +4920,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 #endif /* DEBUG > 1 */
   }
 
-  mxmlDelete(comment);
+  mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, comment);
 
  /*
   * All done, return with no errors...
@@ -4983,7 +4997,7 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
       mxmlElementSetAttr(node, "scope", scope);
     }
 
-    mxmlDelete(temp);
+    mxmlAdd(Garbage, MXML_ADD_AFTER, NULL, temp);
   }
 
  /*

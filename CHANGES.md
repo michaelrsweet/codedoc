@@ -15,6 +15,7 @@ Changes in v3.7
 - Added highlighting of CSS in code-fenced markdown.
 - Added highlighting of reserved words, numbers, and strings in reference
   documentation, to match markdown code example highlighting.
+- Fixed double-free bug (Issue #16)
 - Fixed support for markdown code fences and indentation in code example
   comments.
 - Cleaned up some issues reported by Coverity and Cppcheck.

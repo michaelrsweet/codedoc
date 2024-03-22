@@ -28,6 +28,12 @@ Run the following commands to build the software:
     ./configure
     make
 
+The default install prefix is `/usr/local`, which can be overridden using the
+`--prefix` option:
+
+    ./configure --prefix=/some/other/directory
+    make
+
 
 Installing Codedoc
 ------------------
@@ -36,17 +42,13 @@ To install the software, run:
 
     sudo make install
 
-The default install prefix is `/usr/local`, which can be overridden using the
-`prefix` variable:
-
-    sudo make install prefix=/foo
-
 
 Documentation
 -------------
 
 The codedoc man page provides documentation on how to use it.  Further
-documentation can be found in the file "DOCUMENTATION.md".
+documentation can be found in the file "DOCUMENTATION.md" and the generated
+"codedoc.html" file.
 
 
 Getting Help And Reporting Problems
