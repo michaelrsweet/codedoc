@@ -513,7 +513,8 @@ main(int  argc,				/* I - Number of command-line args */
 	  {
 	    codedoc = NULL;
 
-	    fprintf(stderr, "codedoc: Unable to read the XML documentation file \"%s\".\n", argv[i]);
+            if (!access(argv[i], 0))
+	      fprintf(stderr, "codedoc: Unable to read the XML documentation file \"%s\".\n", argv[i]);
 	  }
 	  else if ((codedoc = mxmlFindElement(doc, doc, "codedoc", NULL, NULL, MXML_DESCEND_ALL)) == NULL)
 	  {
