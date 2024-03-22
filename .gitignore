@@ -3,6 +3,8 @@ Makefile
 autom4te.cache
 codedoc
 codedoc.html
+config.status
+configure~
 test.epub
 test.html
 test.man
