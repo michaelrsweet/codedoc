@@ -209,7 +209,7 @@ static void		free_toc(toc_t *toc);
 static char		*get_comment_info(mxml_node_t *description);
 static char		*get_iso_date(time_t t);
 static mxml_node_t	*get_nth_child(mxml_node_t *node, int idx);
-static const char	*get_nth_text(mxml_node_t *node, int idx, int *whitespace);
+static const char	*get_nth_text(mxml_node_t *node, int idx, bool *whitespace);
 static char		*get_text(mxml_node_t *node, char *buffer, int buflen);
 static void		highlight_c_string(FILE *fp, const char *s, int *histate);
 static void		highlight_htmlxml_string(FILE *fp, const char *s, int *histate);
@@ -218,7 +218,6 @@ static char		*html_gets(FILE *fp, char *fragment, size_t fragsize);
 static void		html_unescape(char *s);
 static bool		is_markdown(const char *filename);
 static bool		is_reserved(const char *word);
-static mxml_type_t	load_cb(mxml_node_t *node);
 static const char	*markdown_anchor(const char *text);
 static void		markdown_write_block(FILE *out, mmd_t *parent, int mode);
 static void		markdown_write_leaf(FILE *out, mmd_t *node, int mode);
@@ -232,6 +231,7 @@ static void		stringbuf_clear(stringbuf_t *buffer);
 static char		*stringbuf_get(stringbuf_t *buffer);
 static int		stringbuf_getlast(stringbuf_t *buffer);
 static size_t		stringbuf_length(stringbuf_t *buffer);
+static mxml_type_t	type_cb(void *cbdata, mxml_node_t *node);
 static void		update_comment(mxml_node_t *parent, mxml_node_t *comment);
 static void		usage(const char *option);
 static void		write_description(FILE *out, int mode, mxml_node_t *description, const char *element, int summary);
@@ -246,7 +246,7 @@ static void		write_html_toc(FILE *out, const char *title, toc_t *toc, const char
 static void		write_man(const char *man_name, const char *section, const char *title, const char *author, const char *copyright, const char *headerfile, const char *bodyfile, mmd_t *body, mxml_node_t *doc, const char *footerfile);
 static void		write_scu(FILE *out, int mode, mxml_node_t *doc, mxml_node_t *scut);
 static void		write_string(FILE *out, const char *s, int mode, int len);
-static const char	*ws_cb(mxml_node_t *node, int where);
+static const char	*ws_cb(void *cbdata, mxml_node_t *node, mxml_ws_t where);
 
 
 /*
@@ -257,9 +257,11 @@ int					/* O - Exit status */
 main(int  argc,				/* I - Number of command-line args */
      char *argv[])			/* I - Command-line args */
 {
+  int		ret = 1;		/* Exit status */
   int		i;			/* Looping var */
   int		len;			/* Length of argument */
   filebuf_t	file;			/* File to read */
+  mxml_options_t *options = NULL;	/* Load/save options */
   mxml_node_t	*doc = NULL;		/* XML documentation tree */
   mxml_node_t	*codedoc = NULL;	/* codedoc node */
   const char	*author = NULL,		/* Author */
@@ -445,7 +447,9 @@ main(int  argc,				/* I - Number of command-line args */
         usage(NULL);
     }
     else if (!strcmp(argv[i], "--no-output"))
+    {
       mode = OUTPUT_NONE;
+    }
     else if (!strcmp(argv[i], "--section") && !section)
     {
      /*
@@ -498,36 +502,25 @@ main(int  argc,				/* I - Number of command-line args */
 
         if (!doc)
 	{
-	  FILE *fp = fopen(argv[i], "r");
+	  if (!options)
+            options = mxmlOptionsNew();
 
-	  if (fp)
+          mxmlOptionsSetTypeCallback(options, type_cb, /*cbdata*/NULL);
+
+          doc = mxmlLoadFilename(/*top*/NULL, options, argv[i]);
+
+	  if (!doc)
 	  {
-	   /*
-	    * Read the existing XML file...
-	    */
-
-	    doc = mxmlLoadFile(NULL, fp, load_cb);
-
-	    fclose(fp);
-
-	    if (!doc)
-	    {
-	      codedoc = NULL;
-
-	      fprintf(stderr, "codedoc: Unable to read the XML documentation file \"%s\".\n", argv[i]);
-	    }
-	    else if ((codedoc = mxmlFindElement(doc, doc, "codedoc", NULL, NULL, MXML_DESCEND)) == NULL)
-	    {
-	      fprintf(stderr, "codedoc: XML documentation file \"%s\" is missing the <codedoc> node.\n", argv[i]);
-
-	      mxmlDelete(doc);
-	      doc = NULL;
-	    }
-	  }
-	  else
-	  {
-	    doc     = NULL;
 	    codedoc = NULL;
+
+	    fprintf(stderr, "codedoc: Unable to read the XML documentation file \"%s\".\n", argv[i]);
+	  }
+	  else if ((codedoc = mxmlFindElement(doc, doc, "codedoc", NULL, NULL, MXML_DESCEND_ALL)) == NULL)
+	  {
+	    fprintf(stderr, "codedoc: XML documentation file \"%s\" is missing the <codedoc> node.\n", argv[i]);
+
+	    mxmlDelete(doc);
+	    doc = NULL;
 	  }
 
 	  if (!doc)
@@ -547,17 +540,17 @@ main(int  argc,				/* I - Number of command-line args */
 
         if (!filebuf_open(&file, argv[i]))
         {
-	  mxmlDelete(doc);
-	  return (1);
+          goto done;
 	}
 	else if (!scan_file(&file, codedoc, NULL, &body))
 	{
 	  fclose(file.fp);
-	  mxmlDelete(doc);
-	  return (1);
+          goto done;
 	}
 	else
+	{
 	  fclose(file.fp);
+	}
       }
     }
   }
@@ -568,31 +561,21 @@ main(int  argc,				/* I - Number of command-line args */
     * Save the updated XML documentation file...
     */
 
-    FILE *fp = fopen(xmlfile, "w");
 
-    if (fp)
+    if (!options)
+      options = mxmlOptionsNew();
+
+    mxmlOptionsSetWhitespaceCallback(options, ws_cb, /*cbdata*/NULL);
+    mxmlOptionsSetWrapMargin(options, 0);
+
+   /*
+    * Write over the existing XML file...
+    */
+
+    if (!mxmlSaveFilename(doc, options, xmlfile))
     {
-     /*
-      * Write over the existing XML file...
-      */
-
-      mxmlSetWrapMargin(0);
-
-      if (mxmlSaveFile(doc, fp, ws_cb))
-      {
-	fprintf(stderr, "codedoc: Unable to write the XML documentation file \"%s\": %s\n", xmlfile, strerror(errno));
-	fclose(fp);
-	mxmlDelete(doc);
-	return (1);
-      }
-
-      fclose(fp);
-    }
-    else
-    {
-      fprintf(stderr, "codedoc: Unable to create the XML documentation file \"%s\": %s\n", xmlfile, strerror(errno));
-      mxmlDelete(doc);
-      return (1);
+      fprintf(stderr, "codedoc: Unable to write the XML documentation file \"%s\": %s\n", xmlfile, strerror(errno));
+      goto done;
     }
   }
 
@@ -659,13 +642,18 @@ main(int  argc,				/* I - Number of command-line args */
   if (body)
     mmdFree(body);
 
+  ret = 0;
+
  /*
   * Delete the tree and return...
   */
 
+  done:
+
+  mxmlOptionsDelete(options);
   mxmlDelete(doc);
 
-  return (0);
+  return (ret);
 }
 
 
@@ -878,7 +866,7 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
 		*next;			/* Next node */
   char		buffer[16384],		/* String buffer */
 		*bufptr;		/* Pointer into buffer */
-  int		whitespace = 0;		/* Whitespace before string? */
+  bool		whitespace = false;	/* Whitespace before string? */
   const char	*string = NULL;		/* String value */
 
 
@@ -985,7 +973,7 @@ add_variable(mxml_node_t *parent,	/* I - Parent node */
   * Add the remaining type information to the variable node...
   */
 
-  mxmlAdd(variable, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, type);
+  mxmlAdd(variable, MXML_ADD_AFTER, /*parent*/NULL, type);
 
  /*
   * Add new new variable node...
@@ -1165,20 +1153,7 @@ build_toc(mxml_node_t *doc,		/* I - Documentation */
 static void
 clear_whitespace(mxml_node_t *node)	/* I - Node */
 {
- /*
-  * Mini-XML 2.x has a bug (Issue #241) where setting the value of a node to
-  * the same pointer will cause a use-after-free error.  Right now we detect at
-  * compile time whether we need to use this workaround...
-  */
-
-#if MXML_MAJOR_VERSION < 3
-  char *s = strdup(mxmlGetText(node, NULL));
-  mxmlSetText(node, 0, s);
-  free(s);
-
-#else
-  mxmlSetText(node, 0, mxmlGetText(node, NULL));
-#endif /* MXML_MAJOR_VERSION < 3 */
+  mxmlSetText(node, false, mxmlGetText(node, NULL));
 }
 
 
@@ -1187,19 +1162,21 @@ clear_whitespace(mxml_node_t *node)	/* I - Node */
  */
 
 static const char *			/* O - Whitespace string or NULL for none */
-epub_ws_cb(mxml_node_t *node,		/* I - Element node */
-           int         where)		/* I - Where value */
+epub_ws_cb(void        *cbdata,		/* I - Callback data (not used) */
+           mxml_node_t *node,		/* I - Element node */
+           mxml_ws_t   where)		/* I - Where value */
 {
   mxml_node_t	*temp;			/* Temporary node pointer */
   int		depth;			/* Depth of node */
   static const char *spaces = "                                        ";
 					/* Whitespace (40 spaces) for indent */
 
+  (void)cbdata;
 
   switch (where)
   {
     case MXML_WS_BEFORE_CLOSE :
-        if ((temp = mxmlGetFirstChild(node)) != NULL && mxmlGetType(temp) != MXML_ELEMENT)
+        if ((temp = mxmlGetFirstChild(node)) != NULL && mxmlGetType(temp) != MXML_TYPE_ELEMENT)
           return (NULL);
 
 	for (depth = -4; node; node = mxmlGetParent(node), depth += 2)
@@ -1228,7 +1205,7 @@ epub_ws_cb(mxml_node_t *node,		/* I - Element node */
 
     default :
     case MXML_WS_AFTER_OPEN :
-        if ((temp = mxmlGetFirstChild(node)) != NULL && mxmlGetType(temp) != MXML_ELEMENT)
+        if ((temp = mxmlGetFirstChild(node)) != NULL && mxmlGetType(temp) != MXML_TYPE_ELEMENT)
           return (NULL);
 
         return ("\n");
@@ -1405,9 +1382,9 @@ find_public(mxml_node_t *node,		/* I - Current node */
 		*comment;		/* Comment node */
 
 
-  for (node = mxmlFindElement(node, top, element, name ? "name" : NULL, name, node == top ? MXML_DESCEND_FIRST : MXML_NO_DESCEND);
+  for (node = mxmlFindElement(node, top, element, name ? "name" : NULL, name, node == top ? MXML_DESCEND_FIRST : MXML_DESCEND_NONE);
        node;
-       node = mxmlFindElement(node, top, element, name ? "name" : NULL, name, MXML_NO_DESCEND))
+       node = mxmlFindElement(node, top, element, name ? "name" : NULL, name, MXML_DESCEND_NONE))
   {
    /*
     * Get the description for this node...
@@ -1428,7 +1405,7 @@ find_public(mxml_node_t *node,		/* I - Current node */
 
     for (comment = mxmlGetFirstChild(description); comment; comment = mxmlGetNextSibling(comment))
     {
-      const char *s = mxmlGetType(comment) == MXML_TEXT ? mxmlGetText(comment, NULL) : mxmlGetOpaque(comment);
+      const char *s = mxmlGetType(comment) == MXML_TYPE_TEXT ? mxmlGetText(comment, NULL) : mxmlGetOpaque(comment);
       const char *exclude;
 
      /*
@@ -1621,7 +1598,7 @@ get_nth_child(mxml_node_t *node,	/* I - Parent node */
 static const char *			/* O - String value or NULL */
 get_nth_text(mxml_node_t *node,		/* I - Parent node */
              int         idx,		/* I - Child node index (negative to index from end) */
-             int         *whitespace)	/* O - Whitespace value (NULL for don't care) */
+             bool        *whitespace)	/* O - Whitespace value (NULL for don't care) */
 {
   return (mxmlGetText(get_nth_child(node, idx), whitespace));
 }
@@ -1649,9 +1626,9 @@ get_text(mxml_node_t *node,		/* I - Node to get */
   {
     mxml_type_t type = mxmlGetType(current);
 
-    if (type == MXML_TEXT)
+    if (type == MXML_TYPE_TEXT)
     {
-      int whitespace;
+      bool whitespace;
       const char *string = mxmlGetText(current, &whitespace);
 
       if (whitespace)
@@ -1664,7 +1641,7 @@ get_text(mxml_node_t *node,		/* I - Node to get */
       memcpy(ptr, string, len);
       ptr += len;
     }
-    else if (type == MXML_OPAQUE)
+    else if (type == MXML_TYPE_OPAQUE)
     {
       const char *opaque = mxmlGetOpaque(current);
 
@@ -2626,20 +2603,6 @@ is_reserved(const char *word)		/* I - Word */
 
 
 /*
- * 'load_cb()' - Set the type of child nodes.
- */
-
-static mxml_type_t			/* O - Node type */
-load_cb(mxml_node_t *node)		/* I - Node */
-{
-  if (!strcmp(mxmlGetElement(node), "description"))
-    return (MXML_OPAQUE);
-  else
-    return (MXML_TEXT);
-}
-
-
-/*
  * 'markdown_anchor()' - Return the HTML anchor for a given title.
  */
 
@@ -3206,7 +3169,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		*node,			/* Current node */
 		*child,			/* First child node */
 		*next;			/* Next node */
-  int		whitespace;		/* Current whitespace value */
+  bool		whitespace;		/* Current whitespace value */
   const char	*string,		/* Current string value */
 		*next_string;		/* Next string value */
   int		nskeyword = 0;		/* Namespace keyword seen? */
@@ -3237,7 +3200,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
   state        = STATE_NONE;
   braces       = 0;
   parens       = 0;
-  comment      = mxmlNewElement(MXML_NO_PARENT, "temp");
+  comment      = mxmlNewElement(/*parent*/NULL, "temp");
   constant     = NULL;
   enumeration  = NULL;
   function     = NULL;
@@ -3348,7 +3311,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 
 	        if (function)
 		{
-                  mxml_node_t *temptype = mxmlFindElement(returnvalue, returnvalue, "type", NULL, NULL, MXML_DESCEND);
+                  mxml_node_t *temptype = mxmlFindElement(returnvalue, returnvalue, "type", NULL, NULL, MXML_DESCEND_ALL);
 
 		  DEBUG_printf("    returnvalue type=%p(%s)\n", temptype, temptype ? mxmlGetText(mxmlGetFirstChild(temptype), NULL) : "null");
 
@@ -3383,7 +3346,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  {
                     DEBUG_puts("    starting typedef...\n");
 
-		    typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
+		    typedefnode = mxmlNewElement(/*parent*/NULL, "typedef");
 		    mxmlDelete(mxmlGetFirstChild(type));
 
 		    string      = next_string;
@@ -3392,7 +3355,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  else
 		    typedefnode = NULL;
 
-		  structclass = mxmlNewElement(MXML_NO_PARENT, string);
+		  structclass = mxmlNewElement(/*parent*/NULL, string);
 
 #ifdef DEBUG
                   DEBUG_printf("%c%s: <<<< %s >>>\n", toupper(string[0]), string + 1, next_string ? next_string : "(noname)");
@@ -3464,7 +3427,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    DEBUG_printf("    duplicating comment %p/%p for typedef...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		    update_comment(typedefnode, mxmlGetLastChild(comment));
-		    mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
+		    mxmlAdd(description, MXML_ADD_AFTER, /*parent*/NULL, mxmlGetLastChild(comment));
 		  }
 
 		  description = mxmlNewElement(structclass, "description");
@@ -3472,7 +3435,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  DEBUG_printf("    adding comment %p/%p to %s...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment), mxmlGetElement(structclass));
 
 		  update_comment(structclass, mxmlGetLastChild(comment));
-		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
+		  mxmlAdd(description, MXML_ADD_AFTER, /*parent*/NULL, mxmlGetLastChild(comment));
 
                   if (!scan_file(file, structclass, nsname, body))
 		  {
@@ -3495,7 +3458,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  {
                     DEBUG_puts("    starting typedef...\n");
 
-		    typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
+		    typedefnode = mxmlNewElement(/*parent*/NULL, "typedef");
 		    mxmlDelete(mxmlGetFirstChild(type));
 		    string      = next_string;
 		    next_string = get_nth_text(type, 1, NULL);
@@ -3503,7 +3466,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  else
 		    typedefnode = NULL;
 
-		  enumeration = mxmlNewElement(MXML_NO_PARENT, "enumeration");
+		  enumeration = mxmlNewElement(/*parent*/NULL, "enumeration");
 
                   DEBUG_printf("Enumeration: <<<< %s >>>\n", next_string ? next_string : "(noname)");
 
@@ -3542,7 +3505,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    DEBUG_printf("    duplicating comment %p/%p for typedef...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		    update_comment(typedefnode, mxmlGetLastChild(comment));
-		    mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
+		    mxmlAdd(description, MXML_ADD_AFTER, /*parent*/NULL, mxmlGetLastChild(comment));
 		  }
 
 		  description = mxmlNewElement(enumeration, "description");
@@ -3550,7 +3513,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  DEBUG_printf("    adding comment %p/%p to enumeration...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		  update_comment(enumeration, mxmlGetLastChild(comment));
-		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
+		  mxmlAdd(description, MXML_ADD_AFTER, /*parent*/NULL, mxmlGetLastChild(comment));
 		}
 		else if (type && string && !strcmp(string, "extern"))
                 {
@@ -3642,7 +3605,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 
 		if (function)
 		{
-                  mxml_node_t *temptype = mxmlFindElement(returnvalue, returnvalue, "type", NULL, NULL, MXML_DESCEND);
+                  mxml_node_t *temptype = mxmlFindElement(returnvalue, returnvalue, "type", NULL, NULL, MXML_DESCEND_ALL);
 
                   DEBUG_printf("    returnvalue type=%p(%s)\n", temptype, temptype ? mxmlGetText(mxmlGetFirstChild(temptype), NULL) : "null");
 
@@ -3682,7 +3645,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    * Yes, add it!
 		    */
 
-		    typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
+		    typedefnode = mxmlNewElement(/*parent*/NULL, "typedef");
 
 		    for (node = get_nth_child(type, 1); node; node = mxmlGetNextSibling(node))
 		      if (!strcmp(mxmlGetText(node, NULL), "("))
@@ -3712,7 +3675,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    if (mxmlGetFirstChild(type))
 		      clear_whitespace(mxmlGetFirstChild(type));
 
-		    mxmlAdd(typedefnode, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, type);
+		    mxmlAdd(typedefnode, MXML_ADD_AFTER, /*parent*/NULL, type);
 		    type = NULL;
 		    break;
 		  }
@@ -4371,7 +4334,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 	      }
 
 	      if (!type)
-                type = mxmlNewElement(MXML_NO_PARENT, "type");
+                type = mxmlNewElement(/*parent*/NULL, "type");
 
               DEBUG_printf("    function=%p (%s), type->child=%p, ch='%c', parens=%d\n", function, function ? mxmlElementGetAttr(function, "name") : "null", mxmlGetFirstChild(type), ch, parens);
 
@@ -4388,7 +4351,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  break;
 		}
 
-	        function = mxmlNewElement(MXML_NO_PARENT, "function");
+	        function = mxmlNewElement(/*parent*/NULL, "function");
 		if ((ptr = strchr(str, ':')) != NULL && ptr[1] == ':')
 		{
 		  char name[1024];	/* Struct/class name */
@@ -4427,14 +4390,14 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		{
                   returnvalue = mxmlNewElement(function, "returnvalue");
 
-		  mxmlAdd(returnvalue, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, type);
+		  mxmlAdd(returnvalue, MXML_ADD_AFTER, /*parent*/NULL, type);
 
 		  description = mxmlNewElement(returnvalue, "description");
 
 		  DEBUG_printf("    adding comment %p/%p to returnvalue...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		  update_comment(returnvalue, mxmlGetLastChild(comment));
-		  mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
+		  mxmlAdd(description, MXML_ADD_AFTER, /*parent*/NULL, mxmlGetLastChild(comment));
                 }
 		else
 		  mxmlDelete(type);
@@ -4444,7 +4407,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		DEBUG_printf("    adding comment %p/%p to function...\n", mxmlGetLastChild(comment), mxmlGetFirstChild(comment));
 
 		update_comment(function, mxmlGetLastChild(comment));
-		mxmlAdd(description, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, mxmlGetLastChild(comment));
+		mxmlAdd(description, MXML_ADD_AFTER, /*parent*/NULL, mxmlGetLastChild(comment));
 
 		type = NULL;
 	      }
@@ -4507,7 +4470,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		    }
 
 		    if (typedefnode)
-		      mxmlAdd(typedefnode, MXML_ADD_BEFORE, MXML_ADD_TO_PARENT, type);
+		      mxmlAdd(typedefnode, MXML_ADD_BEFORE, /*parent*/NULL, type);
 		    else
 		      mxmlDelete(type);
 		  }
@@ -4523,7 +4486,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 
                   DEBUG_printf("Simple typedef: <<<< %s >>>\n", str);
 
-		  typedefnode = mxmlNewElement(MXML_NO_PARENT, "typedef");
+		  typedefnode = mxmlNewElement(/*parent*/NULL, "typedef");
 		  if (nsname)
 		    mxmlElementSetAttrf(typedefnode, "name", "%s::%s", nsname, str);
 		  else
@@ -4535,7 +4498,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 		  if (mxmlGetFirstChild(type))
 		    clear_whitespace(mxmlGetFirstChild(type));
 
-		  mxmlAdd(typedefnode, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, type);
+		  mxmlAdd(typedefnode, MXML_ADD_AFTER, /*parent*/NULL, type);
 		  type = NULL;
 		  DEBUG_printf("    New typedefnode=%p\n", typedefnode);
 		}
@@ -4567,7 +4530,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
                   DEBUG_printf("Variable: <<<< %s >>>>\n", str);
                   DEBUG_printf("    scope = %s\n", scope ? scope : "(null)");
 
-	          variable = add_variable(MXML_NO_PARENT, "variable", type);
+	          variable = add_variable(/*parent*/NULL, "variable", type);
 		  type     = NULL;
 
 		  sort_node(tree, variable);
@@ -4590,7 +4553,7 @@ scan_file(filebuf_t   *file,		/* I  - File to scan */
 	    {
 	      DEBUG_printf("Constant: <<<< %s >>>\n", str);
 
-	      constant = mxmlNewElement(MXML_NO_PARENT, "constant");
+	      constant = mxmlNewElement(/*parent*/NULL, "constant");
 	      if (nsname)
 	        mxmlElementSetAttrf(constant, "name", "%s::%s", nsname, str);
 	      else
@@ -4738,7 +4701,7 @@ sort_node(mxml_node_t *tree,		/* I - Tree to sort into */
     DEBUG_printf("        adding \"%s\" to the end\n", nodename);
 #endif /* DEBUG > 1 */
 
-    mxmlAdd(tree, MXML_ADD_AFTER, MXML_ADD_TO_PARENT, node);
+    mxmlAdd(tree, MXML_ADD_AFTER, /*parent*/NULL, node);
   }
 }
 
@@ -4840,6 +4803,23 @@ static size_t				/* O - Length of string buffer */
 stringbuf_length(stringbuf_t *buffer)	/* I - String buffer */
 {
   return (buffer->bufptr - buffer->buffer);
+}
+
+
+/*
+ * 'type_cb()' - Set the type of child nodes.
+ */
+
+static mxml_type_t			/* O - Node type */
+type_cb(void        *cbdata,		/* I - Callback data (unused) */
+        mxml_node_t *node)		/* I - Node */
+{
+  (void)cbdata;
+
+  if (mxmlGetType(node) == MXML_TYPE_ELEMENT && !strcmp(mxmlGetElement(node), "description"))
+    return (MXML_TYPE_OPAQUE);
+  else
+    return (MXML_TYPE_TEXT);
 }
 
 
@@ -5500,23 +5480,23 @@ write_element(FILE        *out,		/* I - Output file */
               int         mode)		/* I - Output mode */
 {
   mxml_node_t	*node;			/* Current node */
-  int		whitespace;		/* Current whitespace value */
+  bool		whitespace;		/* Current whitespace value */
   const char	*string;		/* Current string value */
 
 
   if (!element)
     return;
 
-  for (node = mxmlGetFirstChild(element); node; node = mxmlWalkNext(node, element, MXML_NO_DESCEND))
+  for (node = mxmlGetFirstChild(element); node; node = mxmlWalkNext(node, element, MXML_DESCEND_NONE))
   {
-    if (mxmlGetType(node) == MXML_TEXT)
+    if (mxmlGetType(node) == MXML_TYPE_TEXT)
     {
       string = mxmlGetText(node, &whitespace);
 
       if (whitespace)
 	putc(' ', out);
 
-      if ((mode == OUTPUT_HTML || mode == OUTPUT_EPUB) && (mxmlFindElement(doc, doc, "class", "name", string, MXML_DESCEND) || mxmlFindElement(doc, doc, "enumeration", "name", string, MXML_DESCEND) || mxmlFindElement(doc, doc, "struct", "name", string, MXML_DESCEND) || mxmlFindElement(doc, doc, "typedef", "name", string, MXML_DESCEND) || mxmlFindElement(doc, doc, "union", "name", string, MXML_DESCEND)))
+      if ((mode == OUTPUT_HTML || mode == OUTPUT_EPUB) && (mxmlFindElement(doc, doc, "class", "name", string, MXML_DESCEND_ALL) || mxmlFindElement(doc, doc, "enumeration", "name", string, MXML_DESCEND_ALL) || mxmlFindElement(doc, doc, "struct", "name", string, MXML_DESCEND_ALL) || mxmlFindElement(doc, doc, "typedef", "name", string, MXML_DESCEND_ALL) || mxmlFindElement(doc, doc, "union", "name", string, MXML_DESCEND_ALL)))
       {
         fputs("<a href=\"#", out);
         write_string(out, string, mode, 0);
@@ -5579,6 +5559,7 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
                 *temp;			/* Other (leaf) node */
   char		identifier[256],	/* dc:identifier string */
 		*package_opf_string;	/* package_opf file as a string */
+  mxml_options_t *options;		/* Save options */
   toc_t		*toc;			/* Table of contents */
   toc_entry_t	*tentry;		/* Current table of contents */
   int		toc_level;		/* Current table-of-contents level */
@@ -5880,7 +5861,12 @@ write_epub(const char  *epubfile,	/* I - EPUB file (output) */
       temp = mxmlNewElement(spine, "itemref");
       mxmlElementSetAttr(temp, "idref", "body");
 
-  package_opf_string = mxmlSaveAllocString(package_opf, epub_ws_cb);
+  options = mxmlOptionsNew();
+  mxmlOptionsSetWhitespaceCallback(options, epub_ws_cb, /*cbdata*/NULL);
+
+  package_opf_string = mxmlSaveAllocString(package_opf, options);
+
+  mxmlOptionsDelete(options);
 
   if ((epubf = zipcCreateFile(epub, "OEBPS/package.opf", 1)) != NULL)
   {
@@ -6085,7 +6071,7 @@ write_function(FILE        *out,	/* I - Output file */
     fputs("<span class=\"reserved\">void</span> ", out);
 
   fputs(name, out);
-  for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = "("; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_NO_DESCEND), prefix = ", ")
+  for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = "("; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_DESCEND_NONE), prefix = ", ")
   {
     type = mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST);
 
@@ -6117,7 +6103,7 @@ write_function(FILE        *out,	/* I - Output file */
 	    "<h%d class=\"parameters\">Parameters</h%d>\n"
 	    "<table class=\"list\"><tbody>\n", level + 1, level + 1);
 
-    for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_NO_DESCEND))
+    for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_DESCEND_NONE))
     {
       fprintf(out, "<tr><th>%s</th>\n", mxmlElementGetAttr(arg, "name"));
 
@@ -6311,7 +6297,7 @@ write_html_body(
 		*type;			/* Type for argument */
   const char	*name,			/* Name of function/type */
 		*defval;		/* Default value */
-  int		whitespace;		/* Current whitespace value */
+  bool		whitespace;		/* Current whitespace value */
   const char	*string;		/* Current string value */
 
 
@@ -6989,7 +6975,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
   time_t	curtime;		/* Current time */
   struct tm	curdate;		/* Current date */
   char		buffer[1024];		/* String buffer */
-  int		whitespace;		/* Current whitespace value */
+  bool		whitespace;		/* Current whitespace value */
   const char	*string;		/* Current string value */
   static const char * const scopes[] =	/* Scope strings */
 		{
@@ -7074,7 +7060,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
       {
         inscope = 0;
 
-	for (arg = mxmlFindElement(scut, scut, "variable", "scope", scopes[i], MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", "scope", scopes[i], MXML_NO_DESCEND))
+	for (arg = mxmlFindElement(scut, scut, "variable", "scope", scopes[i], MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", "scope", scopes[i], MXML_DESCEND_NONE))
 	{
           if (!inscope)
 	  {
@@ -7087,7 +7073,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 	  printf("%s;\n", mxmlElementGetAttr(arg, "name"));
 	}
 
-	for (function = mxmlFindElement(scut, scut, "function", "scope", scopes[i], MXML_DESCEND_FIRST); function; function = mxmlFindElement(function, scut, "function", "scope", scopes[i], MXML_NO_DESCEND))
+	for (function = mxmlFindElement(scut, scut, "function", "scope", scopes[i], MXML_DESCEND_FIRST); function; function = mxmlFindElement(function, scut, "function", "scope", scopes[i], MXML_DESCEND_NONE))
 	{
           if (!inscope)
 	  {
@@ -7108,7 +7094,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 
 	  printf("%s", name);
 
-	  for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = '('; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_NO_DESCEND), prefix = ',')
+	  for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = '('; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_DESCEND_NONE), prefix = ',')
 	  {
 	    type = mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST);
 
@@ -7154,7 +7140,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
       write_description(stdout, OUTPUT_MAN, description, NULL, 1);
       write_description(stdout, OUTPUT_MAN, description, NULL, 0);
 
-      for (arg = mxmlFindElement(scut, scut, "constant", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "constant", NULL, NULL, MXML_NO_DESCEND))
+      for (arg = mxmlFindElement(scut, scut, "constant", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "constant", NULL, NULL, MXML_DESCEND_NONE))
       {
 	description = mxmlFindElement(arg, arg, "description", NULL, NULL, MXML_DESCEND_FIRST);
 	printf(".TP 5\n%s\n.br\n", mxmlElementGetAttr(arg, "name"));
@@ -7190,7 +7176,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 	fputs("void", stdout);
 
       printf(" %s ", name);
-      for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = '('; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_NO_DESCEND), prefix = ',')
+      for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = '('; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_DESCEND_NONE), prefix = ',')
       {
         type = mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST);
 
@@ -7232,14 +7218,14 @@ write_man(const char  *man_name,	/* I - Name of manpage */
       printf(".PP\n"
              ".nf\n"
 	     "struct %s\n{\n", cname);
-      for (arg = mxmlFindElement(scut, scut, "variable", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", NULL, NULL, MXML_NO_DESCEND))
+      for (arg = mxmlFindElement(scut, scut, "variable", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", NULL, NULL, MXML_DESCEND_NONE))
       {
 	printf("  ");
 	write_element(stdout, doc, mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST), OUTPUT_MAN);
 	printf("%s;\n", mxmlElementGetAttr(arg, "name"));
       }
 
-      for (function = mxmlFindElement(scut, scut, "function", NULL, NULL, MXML_DESCEND_FIRST); function; function = mxmlFindElement(function, scut, "function", NULL, NULL, MXML_NO_DESCEND))
+      for (function = mxmlFindElement(scut, scut, "function", NULL, NULL, MXML_DESCEND_FIRST); function; function = mxmlFindElement(function, scut, "function", NULL, NULL, MXML_DESCEND_NONE))
       {
         name = mxmlElementGetAttr(function, "name");
 
@@ -7254,7 +7240,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
 
 	fputs(name, stdout);
 
-	for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = '('; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_NO_DESCEND), prefix = ',')
+	for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = '('; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_DESCEND_NONE), prefix = ',')
 	{
 	  type = mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST);
 
@@ -7367,7 +7353,7 @@ write_man(const char  *man_name,	/* I - Name of manpage */
       printf(".PP\n"
              ".nf\n"
 	     "union %s\n{\n", name);
-      for (arg = mxmlFindElement(scut, scut, "variable", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", NULL, NULL, MXML_NO_DESCEND))
+      for (arg = mxmlFindElement(scut, scut, "variable", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", NULL, NULL, MXML_DESCEND_NONE))
       {
 	printf("  ");
 	write_element(stdout, doc, mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST), OUTPUT_MAN);
@@ -7493,7 +7479,7 @@ write_scu(FILE        *out,	/* I - Output file */
   {
     inscope = maxscope == 1;
 
-    for (arg = mxmlFindElement(scut, scut, "variable", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", NULL, NULL, MXML_NO_DESCEND))
+    for (arg = mxmlFindElement(scut, scut, "variable", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", NULL, NULL, MXML_DESCEND_NONE))
     {
       if (maxscope > 1 && ((scope = mxmlElementGetAttr(arg, "scope")) == NULL || strcmp(scope, scopes[i])))
 	continue;
@@ -7509,7 +7495,7 @@ write_scu(FILE        *out,	/* I - Output file */
       fprintf(out, "%s;%s\n", mxmlElementGetAttr(arg, "name"), br);
     }
 
-    for (function = mxmlFindElement(scut, scut, "function", NULL, NULL, MXML_DESCEND_FIRST); function; function = mxmlFindElement(function, scut, "function", NULL, NULL, MXML_NO_DESCEND))
+    for (function = mxmlFindElement(scut, scut, "function", NULL, NULL, MXML_DESCEND_FIRST); function; function = mxmlFindElement(function, scut, "function", NULL, NULL, MXML_DESCEND_NONE))
     {
       if (maxscope > 1 && ((scope = mxmlElementGetAttr(arg, "scope")) == NULL || strcmp(scope, scopes[i])))
 	continue;
@@ -7533,7 +7519,7 @@ write_scu(FILE        *out,	/* I - Output file */
 
       fprintf(out, "<a href=\"#%s.%s\">%s</a>", cname, name, name);
 
-      for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = '('; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_NO_DESCEND), prefix = ',')
+      for (arg = mxmlFindElement(function, function, "argument", NULL, NULL, MXML_DESCEND_FIRST), prefix = '('; arg; arg = mxmlFindElement(arg, function, "argument", NULL, NULL, MXML_DESCEND_NONE), prefix = ',')
       {
 	type = mxmlFindElement(arg, arg, "type", NULL, NULL, MXML_DESCEND_FIRST);
 
@@ -7560,7 +7546,7 @@ write_scu(FILE        *out,	/* I - Output file */
 	"<h4 class=\"members\">Members</h4>\n"
 	"<table class=\"list\"><tbody>\n", out);
 
-  for (arg = mxmlFindElement(scut, scut, "variable", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", NULL, NULL, MXML_NO_DESCEND))
+  for (arg = mxmlFindElement(scut, scut, "variable", NULL, NULL, MXML_DESCEND_FIRST); arg; arg = mxmlFindElement(arg, scut, "variable", NULL, NULL, MXML_DESCEND_NONE))
   {
     description = mxmlFindElement(arg, arg, "description", NULL, NULL, MXML_DESCEND_FIRST);
 
@@ -7572,7 +7558,7 @@ write_scu(FILE        *out,	/* I - Output file */
 
   fputs("</tbody></table>\n", out);
 
-  for (function = mxmlFindElement(scut, scut, "function", NULL, NULL, MXML_DESCEND_FIRST); function; function = mxmlFindElement(function, scut, "function", NULL, NULL, MXML_NO_DESCEND))
+  for (function = mxmlFindElement(scut, scut, "function", NULL, NULL, MXML_DESCEND_FIRST); function; function = mxmlFindElement(function, scut, "function", NULL, NULL, MXML_DESCEND_NONE))
   {
     write_function(out, mode, doc, function, 4);
   }
@@ -7692,8 +7678,9 @@ write_string(FILE       *out,		/* I - Output file */
  */
 
 static const char *			/* O - Whitespace string or NULL for none */
-ws_cb(mxml_node_t *node,		/* I - Element node */
-      int         where)		/* I - Where value */
+ws_cb(void        *cbdata,		/* I - Callback data (unused) */
+      mxml_node_t *node,		/* I - Element node */
+      mxml_ws_t   where)		/* I - Where value */
 {
   const char *name;			/* Name of element */
   int	depth;				/* Depth of node */
@@ -7701,7 +7688,24 @@ ws_cb(mxml_node_t *node,		/* I - Element node */
 					/* Whitespace (40 spaces) for indent */
 
 
-  name = mxmlGetElement(node);
+  switch (mxmlGetType(node))
+  {
+    case MXML_TYPE_DECLARATION :
+        name = mxmlGetDeclaration(node);
+        break;
+
+    case MXML_TYPE_DIRECTIVE :
+        name = mxmlGetDirective(node);
+        break;
+
+    case MXML_TYPE_ELEMENT :
+        name = mxmlGetElement(node);
+        break;
+
+    default :
+        name = "unknown";
+        break;
+  }
 
   switch (where)
   {

@@ -72,10 +72,32 @@ AS_IF([$PKGCONFIG --exists mxml4], [
 ])
 
 
+dnl zlib...
+AC_MSG_CHECKING([for zlib])
+AS_IF([$PKGCONFIG --exists zlib], [
+    AC_MSG_RESULT([yes]);
+    CPPFLAGS="$CPPFLAGS $($PKGCONFIG --cflags zlib)"
+    LIBS="$($PKGCONFIG --libs zlib) $LIBS"
+], [
+    AC_MSG_RESULT([no pkg-config definition]);
+    AC_CHECK_HEADER([zlib.h])
+    AC_CHECK_LIB([z], [gzgets], [
+	LIBS="$LIBS -lz"
+    ], [
+	AC_MSG_ERROR([codedoc requires zlib.])
+    ])
+])
+
+
 dnl Extra compiler options...
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug], [turn on debugging, default=no]))
 AC_ARG_ENABLE([maintainer], AS_HELP_STRING([--enable-maintainer], [turn on maintainer mode, default=no]))
-AC_ARG_ENABLE([sanitizer], AS_HELP_STRING([--enable-sanitizer], [build with AddressSanitizer, default=no]))
+AC_ARG_WITH([sanitizer], AS_HELP_STRING([--with-sanitizer=...], [build with address, leak, memory, thread, or undefined sanitizer, default=no]), [], [with_sanitizer=no])
+AS_IF([test "x$with_sanitizer" = xyes], [
+    with_sanitizer="address"
+], [test "$with_sanitizer" != address -a "$with_sanitizer" != leak -a "$with_sanitizer" != memory -a "$with_sanitizer" != no -a "$with_sanitizer" != thread -a "$with_sanitizer" != undefined], [
+    AC_MSG_ERROR([Unsupported --with-sanitizer value "$with_sanitizer" specified.])
+])
 
 AS_IF([test x$enable_debug = xyes], [
     OPTIM="-g"
@@ -91,13 +113,15 @@ WARNINGS=""
 AC_SUBST([WARNINGS])
 
 AS_IF([test -n "$GCC"], [
-    AS_IF([test x$enable_sanitizer = xyes], [
-	# Use -fsanitize=address with debugging...
-	OPTIM="-g -fsanitize=address"
+    AS_IF([test x$with_sanitizer != xno], [
+	# Use -fsanitize=FOO with debugging...
+	OPTIM="$OPTIM -fsanitize=$with_sanitizer"
+    ], [echo "$CPPFLAGS $CFLAGS" | grep -q _FORTIFY_SOURCE], [
+        # Don't add _FORTIFY_SOURCE if it is already there
     ], [
 	# Otherwise use the Fortify enhancements to catch any unbounded
 	# string operations...
-	CPPFLAGS="$CPPFLAGS -D_FORTIFY_SOURCE=2"
+	CPPFLAGS="$CPPFLAGS -D_FORTIFY_SOURCE=3"
     ])
 
     dnl Show all standard warnings + unused variables when compiling...
