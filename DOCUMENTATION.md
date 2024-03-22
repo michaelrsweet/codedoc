@@ -110,26 +110,26 @@ exceptions:
 
 - Embedded HTML markup and entities are explicitly not supported or allowed;
   the reason for this is to better support different kinds of output from the
-  markdown "source", including XHTML, man, and `xml2rfc`.
+  markdown "source", including XHTML and man pages.
 
 - Tabs are silently expanded to the markdown standard of four spaces since HTML
   uses eight spaces per tab.
 
 - Some pathological nested link and inline style features supported by
-  CommonMark (`******Really Strong Text******`) are not supported.
+  CommonMark like "`******Really Strong Text******`".
 
 - Support for metadata as used by Jekyll and other web markdown solutions.
 
-- Support for `@` links which resolve to headings within the documentation.
+- Support for "`@`" links which resolve to headings within the documentation.
 
-- Support for `@@` links which resolve to literal names such as functions and
+- Support for "`@@`" links which resolve to literal names such as functions and
   types within the documentation.
 
-- Support for `::WIDTHxHEIGHT`, `::WIDTHx`, and `::xHEIGHT` in image (ALT) text
-  to scale images to the specified size.
+- Support for "`::WIDTHxHEIGHT`", "`::WIDTHx`", and "`::xHEIGHT`" in image (ALT)
+  text to scale images to the specified size.
 
-- Support for the "c", "cpp", "html", and "xml" languages for syntax
-  highlighting in fenced code text.
+- Support syntax highlighting of "c", "cpp", "css", "html", and "xml" in fenced
+  code text.
 
 - Support for tables as used by the
   [Github Flavored Markdown Spec](https://github.github.com/gfm).
@@ -151,34 +151,38 @@ definition, return type, or variable. For example, the following code excerpt
 defines a key/value structure and a function that creates a new instance of that
 structure:
 
-    /* A key/value pair. This is used with the
-       dictionary structure. */
+```c
+/* A key/value pair. This is used with the
+   dictionary structure. */
 
-    struct keyval
-    {
-      char *key; /* Key string */
-      char *val; /* Value string */
-    };
+struct keyval
+{
+  char *key; /* Key string */
+  char *val; /* Value string */
+};
 
-    /* Create a new key/value pair. */
+/* Create a new key/value pair. */
 
-    struct keyval * /* New key/value pair */
-    new_keyval(
-        const char *key, /* Key string */
-        const char *val) /* Value string */
-    {
-      ...
-    }
+struct keyval * /* New key/value pair */
+new_keyval(
+    const char *key, /* Key string */
+    const char *val) /* Value string */
+{
+  ...
+}
+```
 
 Codedoc also knows to remove extra asterisks (\*) from the comment string, so
 the comment string:
 
-    /*
-     * Compute the value of PI.
-     *
-     * The function connects to an Internet server that streams audio of
-     * mathematical monks chanting the first 100 digits of PI.
-     */
+```c
+/*
+ * Compute the value of PI.
+ *
+ * The function connects to an Internet server that streams audio of
+ * mathematical monks chanting the first 100 digits of PI.
+ */
+```
 
 will be shown as:
 
@@ -225,7 +229,7 @@ Comments can use a small subset of markdown inline formatting characters:
 
 In addition, example code can be surrounded by lines containing "\`\`\`":
 
-```
+```c
 /*
  * Example code:
  *
@@ -240,7 +244,7 @@ In addition, example code can be surrounded by lines containing "\`\`\`":
 
 Bulleted lists can be provided using a leading hyphen:
 
-```
+```c
 /*
  * Example list:
  *
@@ -253,7 +257,7 @@ Bulleted lists can be provided using a leading hyphen:
 
 and block quotes can be provided using the ">" character:
 
-```
+```c
 /*
  * Some sort of documentation...
  *
@@ -322,7 +326,7 @@ documentation:
 Default Stylesheet
 ------------------
 
-```
+```css
 body {
   background: white;
   color: black;
@@ -397,6 +401,12 @@ blockquote {
   box-shadow: 3px 3px 5px rgba(127,127,127,0.25);
   padding: 0px 10px;
   page-break-inside: avoid;
+}
+blockquote :first-child {
+  margin-top: 0;
+}
+blockquote :first-child {
+  margin-bottom: 0;
 }
 p code, li code, p.code, pre, ul.code li {
   font-family: monospace;
@@ -530,7 +540,7 @@ span.string {
 Additional CSS for HTML Output
 ------------------------------
 
-```
+```css
 /* Show contents on left side in web browser */
 @media screen and (min-width: 800px) {
   div.contents {

@@ -12,6 +12,7 @@ Changes in v3.7
 - Added support for `@body@` comment directive to add body text inline with code
   (Issue #10)
 - Added highlighting of HTML and XML in code-fenced markdown (Issue #19)
+- Added highlighting of CSS in code-fenced markdown.
 - Added highlighting of reserved words, numbers, and strings in reference
   documentation, to match markdown code example highlighting.
 - Fixed support for markdown code fences and indentation in code example
