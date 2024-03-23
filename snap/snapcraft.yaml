@@ -36,4 +36,4 @@ parts:
         autotools-configure-parameters: [--prefix=/]
         source: .
         after: [mxml]
-        build-packages: [zlib1g-dev]
+        build-packages: [zlib1g-dev, pkg-config]
