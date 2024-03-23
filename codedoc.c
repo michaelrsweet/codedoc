@@ -1710,13 +1710,17 @@ highlight_c_string(FILE       *fp,	/* I  - Output file */
       *histate   = HIGHLIGHT_NONE;
       class_name = NULL;
     }
-    else
+    else if (*start)
     {
      /*
       * Comment continues beyond the current line...
       */
 
       s = start + strlen(start) - 1;
+    }
+    else
+    {
+      goto done;
     }
   }
   else if (*s == '#')
@@ -1993,6 +1997,8 @@ highlight_c_string(FILE       *fp,	/* I  - Output file */
       write_string(fp, start, OUTPUT_HTML, s - start);
     }
   }
+
+  done:
 
   if (*histate != HIGHLIGHT_COMMENT)
     *histate = HIGHLIGHT_NONE;
@@ -2944,6 +2950,9 @@ markdown_anchor(const char *text)	/* I - Title text */
   char          *bufptr;                /* Pointer into buffer */
   static char   buffer[1024];           /* Buffer for anchor string */
 
+
+  if (!text)
+    return ("");
 
   for (bufptr = buffer; *text && bufptr < (buffer + sizeof(buffer) - 1); text ++)
   {
@@ -6763,7 +6772,7 @@ write_html_body(
 	type   = mxmlFindElement(scut, scut, "type", NULL, NULL, MXML_DESCEND_FIRST);
 	string = mxmlGetText(mxmlGetLastChild(type), NULL);
 
-        if (*string != '*')
+        if (string && *string != '*')
 	  putc(' ', out);
 
 	fprintf(out, "%s;\n", name);
