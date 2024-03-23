@@ -3773,8 +3773,8 @@ printf %s "checking for mxml4... " >&6; }
 if $PKGCONFIG --exists mxml4
 then :
 
-    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes, cflags=\"$($PKGCONFIG --cflags mxml4)\", libs=\"$($PKGCONFIG --libs mxml4)\"" >&5
-printf "%s\n" "yes, cflags=\"$($PKGCONFIG --cflags mxml4)\", libs=\"$($PKGCONFIG --libs mxml4)\"" >&6; }
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
     CFLAGS="$CFLAGS $($PKGCONFIG --cflags mxml4)"
     LIBS="$LIBS $($PKGCONFIG --libs mxml4)"
 
@@ -3792,8 +3792,8 @@ printf %s "checking for zlib... " >&6; }
 if $PKGCONFIG --exists zlib
 then :
 
-    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes, cflags=\"$($PKGCONFIG --cflags zlib)\", libs=\"$($PKGCONFIG --libs zlib)\"" >&5
-printf "%s\n" "yes, cflags=\"$($PKGCONFIG --cflags zlib)\", libs=\"$($PKGCONFIG --libs zlib)\"" >&6; }
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
     CPPFLAGS="$CPPFLAGS $($PKGCONFIG --cflags zlib)"
     LIBS="$LIBS $($PKGCONFIG --libs zlib)"
     ZLIB=1

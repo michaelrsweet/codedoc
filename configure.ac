@@ -68,7 +68,7 @@ AS_IF([test "x$PKGCONFIG" = x], [
 dnl Mini-XML library...
 AC_MSG_CHECKING([for mxml4])
 AS_IF([$PKGCONFIG --exists mxml4], [
-    AC_MSG_RESULT([yes, cflags="$($PKGCONFIG --cflags mxml4)", libs="$($PKGCONFIG --libs mxml4)"])
+    AC_MSG_RESULT([yes])
     CFLAGS="$CFLAGS $($PKGCONFIG --cflags mxml4)"
     LIBS="$LIBS $($PKGCONFIG --libs mxml4)"
 ], [
@@ -80,7 +80,7 @@ AS_IF([$PKGCONFIG --exists mxml4], [
 dnl zlib...
 AC_MSG_CHECKING([for zlib])
 AS_IF([$PKGCONFIG --exists zlib], [
-    AC_MSG_RESULT([yes, cflags="$($PKGCONFIG --cflags zlib)", libs="$($PKGCONFIG --libs zlib)"])
+    AC_MSG_RESULT([yes])
     CPPFLAGS="$CPPFLAGS $($PKGCONFIG --cflags zlib)"
     LIBS="$LIBS $($PKGCONFIG --libs zlib)"
     ZLIB=1

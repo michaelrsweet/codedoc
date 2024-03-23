@@ -27,7 +27,7 @@ apps:
 parts:
     mxml:
         plugin: autotools
-        autotools-configure-parameters: [--disable-shared]
+        autotools-configure-parameters: [--disable-shared --prefix=/]
         source-type: git
         source: https://github.com/michaelrsweet/mxml.git
 
