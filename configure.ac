@@ -61,13 +61,18 @@ AC_MSG_RESULT([using $INSTALL])
 
 dnl Check for pkg-config, which is used for some other tests later on...
 AC_PATH_TOOL([PKGCONFIG], [pkg-config])
-
+AS_IF([test "x$PKGCONFIG" = x], [
+    AC_MSG_ERROR([pkg-config is required for codedoc.])
+])
 
 dnl Mini-XML library...
+AC_MSG_CHECKING([for mxml4])
 AS_IF([$PKGCONFIG --exists mxml4], [
+    AC_MSG_RESULT([yes])
     CFLAGS="$CFLAGS $($PKGCONFIG --cflags mxml4)"
     LIBS="$LIBS $($PKGCONFIG --libs mxml4)"
 ], [
+    AC_MSG_RESULT([no])
     AC_MSG_ERROR([Mini-XML 4.x is required for codedoc.])
 ])
 
@@ -75,15 +80,19 @@ AS_IF([$PKGCONFIG --exists mxml4], [
 dnl zlib...
 AC_MSG_CHECKING([for zlib])
 AS_IF([$PKGCONFIG --exists zlib], [
-    AC_MSG_RESULT([yes]);
+    AC_MSG_RESULT([yes])
     CPPFLAGS="$CPPFLAGS $($PKGCONFIG --cflags zlib)"
-    LIBS="$($PKGCONFIG --libs zlib) $LIBS"
+    LIBS="$LIBS $($PKGCONFIG --libs zlib)"
+    ZLIB=1
 ], [
-    AC_MSG_RESULT([no pkg-config definition]);
+    AC_MSG_RESULT([no])
+    ZLIB=0
+])
+
+AS_IF([test $ZLIB = 0], [
     AC_CHECK_HEADER([zlib.h])
-    AC_CHECK_LIB([z], [gzgets], [
-	LIBS="$LIBS -lz"
-    ], [
+    AC_CHECK_LIB([z], [gzgets])
+    AS_IF([test x$ac_cv_header_zlib_h != xyes -o x$ac_cv_lib_z_gzgets != xyes], [
 	AC_MSG_ERROR([codedoc requires zlib.])
     ])
 ])

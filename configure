@@ -3761,16 +3761,27 @@ else
   PKGCONFIG="$ac_cv_path_PKGCONFIG"
 fi
 
+if test "x$PKGCONFIG" = x
+then :
 
+    as_fn_error $? "pkg-config is required for codedoc." "$LINENO" 5
 
+fi
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for mxml4" >&5
+printf %s "checking for mxml4... " >&6; }
 if $PKGCONFIG --exists mxml4
 then :
 
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
     CFLAGS="$CFLAGS $($PKGCONFIG --cflags mxml4)"
     LIBS="$LIBS $($PKGCONFIG --libs mxml4)"
 
 else $as_nop
 
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
     as_fn_error $? "Mini-XML 4.x is required for codedoc." "$LINENO" 5
 
 fi
@@ -3778,6 +3789,23 @@ fi
 
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for zlib" >&5
 printf %s "checking for zlib... " >&6; }
+if $PKGCONFIG --exists zlib
+then :
+
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
+    CPPFLAGS="$CPPFLAGS $($PKGCONFIG --cflags zlib)"
+    LIBS="$LIBS $($PKGCONFIG --libs zlib)"
+    ZLIB=1
+
+else $as_nop
+
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+    ZLIB=0
+
+fi
+
 
 ac_header= ac_cache=
 for ac_item in $ac_header_c_list
@@ -3808,18 +3836,9 @@ then :
 printf "%s\n" "#define STDC_HEADERS 1" >>confdefs.h
 
 fi
-if $PKGCONFIG --exists zlib
+if test $ZLIB = 0
 then :
 
-    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-printf "%s\n" "yes" >&6; };
-    CPPFLAGS="$CPPFLAGS $($PKGCONFIG --cflags zlib)"
-    LIBS="$($PKGCONFIG --libs zlib) $LIBS"
-
-else $as_nop
-
-    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no pkg-config definition" >&5
-printf "%s\n" "no pkg-config definition" >&6; };
     ac_fn_c_check_header_compile "$LINENO" "zlib.h" "ac_cv_header_zlib_h" "$ac_includes_default"
 if test "x$ac_cv_header_zlib_h" = xyes
 then :
@@ -3863,15 +3882,18 @@ fi
 printf "%s\n" "$ac_cv_lib_z_gzgets" >&6; }
 if test "x$ac_cv_lib_z_gzgets" = xyes
 then :
+  printf "%s\n" "#define HAVE_LIBZ 1" >>confdefs.h
 
-	LIBS="$LIBS -lz"
+  LIBS="-lz $LIBS"
 
-else $as_nop
+fi
+
+    if test x$ac_cv_header_zlib_h != xyes -o x$ac_cv_lib_z_gzgets != xyes
+then :
 
 	as_fn_error $? "codedoc requires zlib." "$LINENO" 5
 
 fi
-
 
 fi
 
