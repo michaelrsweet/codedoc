@@ -1,4 +1,4 @@
-Codedoc v3.7
+Codedoc v3.8
 ============
 
 ![Version](https://img.shields.io/github/v/release/michaelrsweet/codedoc?include_prereleases)

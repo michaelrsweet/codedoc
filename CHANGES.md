@@ -2,8 +2,14 @@ Changes in Codedoc
 ==================
 
 
-Changes in v3.7
----------------
+Changes in v3.8 (YYYY-MM-DD)
+----------------------------
+
+- Fixed a bug in the markdown parser.
+
+
+Changes in v3.7 (2024-03-24)
+----------------------------
 
 - Now require Mini-XML 4.x.
 - Now include a configure script.
@@ -22,8 +28,8 @@ Changes in v3.7
 - Cleaned up some issues reported by Coverity and Cppcheck.
 
 
-Changes in v3.6
----------------
+Changes in v3.6 (2020-12-31)
+----------------------------
 
 - Added support for syntax highlighting of C and C++ code.
 - Added support for literal links (functions, types, etc.) using the "@@"
@@ -38,8 +44,8 @@ Changes in v3.6
   savings in file size.
 
 
-Changes in v3.5
----------------
+Changes in v3.5 (2020-10-09)
+----------------------------
 
 - Added support for C++ block comments.
 - Fixed support for function types.
@@ -52,15 +58,15 @@ Changes in v3.5
   '()'.
 
 
-Changes in v3.4
----------------
+Changes in v3.4 (2019-12-28)
+----------------------------
 
 - Added support for C++ namespaces (Issue #7)
 - Silenced some warnings from the LGTM security scanner.
 
 
-Changes in v3.3
----------------
+Changes in v3.3 (2019-11-17)
+----------------------------
 
 - Added basic markdown support in comments (Issue #6)
 - Added a `--language` option to override the default documentation language
@@ -69,8 +75,8 @@ Changes in v3.3
 - Did some minor code reorganization/cleanup.
 
 
-Changes in v3.2
----------------
+Changes in v3.2 (2019-08-28)
+----------------------------
 
 - The default HTML stylesheet no longer puts an outline box around monospaced
   text (Issue #2)
@@ -81,8 +87,8 @@ Changes in v3.2
 - Fixed some markdown parsing issues.
 
 
-Changes in v3.1
----------------
+Changes in v3.1 (2019-02-19)
+----------------------------
 
 - Fixed compile problems with Mini-XML v3.0.
 - Greatly improved scanning of HTML content when generating the table of
@@ -95,8 +101,8 @@ Changes in v3.1
 - Added documentation on EPUB and HTML stylesheets.
 
 
-Changes in v3.0
----------------
+Changes in v3.0 (2019-01-04)
+----------------------------
 
 - Fixed potential crash bugs in mxmldoc found by fuzzing.
 - The `--header` and `--footer` options now support markdown.

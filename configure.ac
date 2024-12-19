@@ -13,7 +13,7 @@ AC_PREREQ(2.60)
 
 
 dnl Package name and version...
-AC_INIT([codedoc], [3.7], [https://github.com/michaelrsweet/codedoc/issues], [codedoc], [https://www.msweet.org/codedoc])
+AC_INIT([codedoc], [3.8], [https://github.com/michaelrsweet/codedoc/issues], [codedoc], [https://www.msweet.org/codedoc])
 
 VERSION="AC_PACKAGE_VERSION"
 AC_SUBST([VERSION])
