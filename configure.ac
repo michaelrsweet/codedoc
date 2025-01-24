@@ -1,7 +1,7 @@
 dnl
 dnl Configuration script for codedoc
 dnl
-dnl Copyright © 2024 by Michael R Sweet
+dnl Copyright © 2024-2025 by Michael R Sweet
 dnl
 dnl Licensed under Apache License v2.0.  See the file "LICENSE" for more
 dnl information.

@@ -5,7 +5,7 @@ Changes in Codedoc
 Changes in v3.8 (YYYY-MM-DD)
 ----------------------------
 
-- Fixed a bug in the markdown parser.
+- Fixed bugs in the markdown parser.
 
 
 Changes in v3.7 (2024-03-24)
