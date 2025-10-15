@@ -5,6 +5,8 @@ Changes in Codedoc
 Changes in v3.8 (YYYY-MM-DD)
 ----------------------------
 
+- Updated the default stylesheet coloring for code text to stand out.
+- Increased the markdown paragraph buffer to 64k.
 - Fixed bugs in the markdown parser.
 
 
